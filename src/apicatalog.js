@@ -1,13 +1,13 @@
-// Полный скан Gizmo V3 API для проверки стабильности между версиями Gizmo.
+// Full scan of the Gizmo V3 API to check stability across Gizmo versions.
 //
-// Каталог эндпоинтов берётся из ЖИВОГО OpenAPI-документа самого сервера
-// (GET /openapi/v3.json — тот же «Download OpenAPI Document» из Scalar-доки),
-// поэтому всегда соответствует установленной версии. Фолбэк — парсинг SDK.
+// The endpoint catalog is taken from the LIVE OpenAPI document of the server
+// itself (GET /openapi/v3.json — the same "Download OpenAPI Document" from the
+// Scalar docs), so it always matches the installed version. Fallback — parse SDK.
 //
-// Прогон безопасный: GET-эндпоинты вызываются реально (by-id — с подстановкой
-// живых id со стенда), мутации (POST/PUT/DELETE) только каталогизируются —
-// их покрывают сценарные тесты. Отчёт сохраняется в apitest-reports/*.json;
-// diff двух отчётов показывает added / removed / changed эндпоинты.
+// The run is safe: GET endpoints are actually called (by-id — with live stand
+// ids substituted), mutations (POST/PUT/DELETE) are only catalogued — scenario
+// tests cover them. The report is saved to apitest-reports/*.json;
+// a diff of two reports shows added / removed / changed endpoints.
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -18,7 +18,7 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url))
 const SDK_V3 = path.join(ROOT, '..', 'node_modules', 'gizmovsky', 'src', 'v3')
 const REPORTS_DIR = path.join(ROOT, '..', 'apitest-reports')
 
-// ── Каталог из OpenAPI-документа сервера ────────────────────────────────────
+// ── Catalog from the server's OpenAPI document ──────────────────────────────
 export async function loadOpenApiSpec() {
   const auth = Buffer.from(`${config.gizmo.username}:${config.gizmo.password}`).toString('base64')
   const url = `http://${config.gizmo.ip}:${config.gizmo.port}/openapi/v3.json`
@@ -48,9 +48,9 @@ function catalogFromSpec(spec) {
   return endpoints
 }
 
-// Фолбэк: каталог из исходников SDK (если openapi недоступен).
-// Исходники входят в npm-пакет gizmovsky (files: src); если их всё же нет —
-// возвращаем пусто, скан честно скажет «каталог недоступен».
+// Fallback: catalog from the SDK sources (if openapi is unavailable).
+// The sources ship in the gizmovsky npm package (files: src); if they're still
+// missing — return empty, and the scan honestly says "catalog unavailable".
 function catalogFromSdk() {
   const endpoints = []
   if (!existsSync(SDK_V3)) return endpoints
@@ -69,28 +69,28 @@ function catalogFromSdk() {
   return endpoints.filter((e) => e.verb)
 }
 
-// ── Живые id со стенда для подстановки path-параметров ──────────────────────
+// ── Live stand ids for substituting path parameters ─────────────────────────
 async function collectSamples() {
   const s = {}
   const safe = async (fn) => { try { return await fn() } catch { return null } }
   const first = (r) => data(r)[0]?.id
   s.hostId = await safe(async () => first(await gapi.v3.hosts.getHosts({ paginationLimit: 1 })))
   s.userId = await safe(async () => first(await gapi.v3.users.getUsers({ paginationLimit: 1 })))
-  // Продукты — по ТИПАМ: обычный / пакет времени (1) / бандл (2). Эндпоинты вида
-  // /products/time/{id}/... принимают ТОЛЬКО продукт своего типа — иначе not found.
+  // Products — by TYPE: normal / time package (1) / bundle (2). Endpoints like
+  // /products/time/{id}/... accept ONLY a product of their type — else not found.
   await safe(async () => {
     const prods = data(await gapi.v3.products.getProducts({ paginationLimit: 100 }))
     s.productId = prods[0]?.id ?? null
     s.timeProductId = prods.find((p) => p.productType === 1)?.id ?? null
     s.bundleProductId = prods.find((p) => p.productType === 2)?.id ?? null
-    // товар с ВКЛЮЧЁННЫМ остатком — только такой валиден для /productstocks/*
+    // a product with stock ENABLED — only such is valid for /productstocks/*
     s.stockProductId = prods.find((p) => p.enableStock)?.id ?? null
   })
   s.stockId = await safe(async () => first(await gapi.v3.stocks.getStocks({ paginationLimit: 1 })))
   s.applicationGroupId = await safe(async () => first(await gapi.v3.applicationGroups.getApplicationGroups({ paginationLimit: 1 })))
   s.feedId = await safe(async () => first(await gapi.v3.feeds.getFeeds({ paginationLimit: 1 })))
   s.newsId = await safe(async () => first(await gapi.v3.news.getNews({ paginationLimit: 1 })))
-  // заметки пользователей: перебираем первых пользователей, пока не найдём заметку
+  // user notes: iterate the first users until we find a note
   s.userNoteUserId = null; s.userNoteId = null
   await safe(async () => {
     const users = data(await gapi.v3.users.getUsers({ paginationLimit: 15 }))
@@ -113,7 +113,7 @@ async function collectSamples() {
   s.registerId = await safe(async () => first(await gapi.v3.registers.getRegisters({ paginationLimit: 1 })))
   s.operatorId = await safe(async () => first(await gapi.v3.operators.getOperators({ paginationLimit: 1 })))
   s.branchId = config.branchId
-  // живые токены оператора — для auth/accesstoken/refresh (Token+RefreshToken)
+  // live operator tokens — for auth/accesstoken/refresh (Token+RefreshToken)
   await safe(async () => {
     const r = await gapi.v3.hosts.client.request('get', '/api/v3/auth/accesstoken', {},
       { Username: config.gizmo.username, Password: config.gizmo.password })
@@ -123,10 +123,10 @@ async function collectSamples() {
   return s
 }
 
-// ── Фикстуры: недостающие сущности СОЗДАЁМ — это и есть тест функционала
-// «создать → прочитать». Всё именуется api_scan_* и переиспользуется на
-// следующих сканах (collectSamples найдёт их по типу). Исключение — хосты:
-// им нужен ЖИВОЙ Gizmo-клиент, их не сэмулировать.
+// ── Fixtures: we CREATE the missing entities — that's the functional test
+// "create → read". Everything is named api_scan_* and is reused on subsequent
+// scans (collectSamples finds them by type). Exception — hosts: they need a
+// LIVE Gizmo client and can't be simulated.
 async function ensureFixtures(samples) {
   const created = []
   const safe = async (fn) => { try { return await fn() } catch { return null } }
@@ -146,13 +146,13 @@ async function ensureFixtures(samples) {
   }
   if (samples.bundleProductId == null && samples.productGroupId != null) {
     const r = await safe(() => gapi.v3.products.postProducts({
-      // disallowClientOrder — чтобы боты не заказали тест-товар (иначе $0-заказ виснет)
+      // disallowClientOrder — so bots don't order the test product (else a $0 order hangs)
       productType: 2, productGroupId: samples.productGroupId, name: 'api_scan_bundle',
       price: 1, purchaseOptions: 0, bundle: {}, disallowClientOrder: true,
     }))
     if (idOf(r)) { samples.bundleProductId = idOf(r); created.push('bundle-продукт') }
   }
-  // внутри бандла должен лежать хотя бы один товар — иначе userprices «not found»
+  // a bundle must contain at least one product — otherwise userprices is "not found"
   if (samples.bundleProductId != null && samples.productId != null) {
     const rows = await safe(async () => data(await gapi.v3.products.getProductsBundleByIdBundledproducts(samples.bundleProductId)))
     samples.bundledProductId = rows?.[0]?.id ?? null
@@ -187,9 +187,9 @@ async function ensureFixtures(samples) {
   return created
 }
 
-// ── Хосты для host-зависимых API (hostcomputers/*): подключён ли Gizmo-клиент ──
-// Списочного /hostcomputers нет (404) — единственный способ узнать «онлайн ли
-// хост» это дёрнуть лёгкий passthrough-запрос и посмотреть, ответит ли клиент.
+// ── Hosts for host-dependent APIs (hostcomputers/*): is the Gizmo client up ──
+// There's no list /hostcomputers (404) — the only way to tell "is the host
+// online" is to fire a light passthrough request and see whether the client answers.
 export async function listScanHosts(probe = false) {
   const hosts = data(await gapi.v3.hosts.getHosts({ paginationLimit: 100 }))
   const out = hosts.filter((h) => !h.isDeleted).map((h) => ({ id: h.id, name: h.name, connected: null }))
@@ -211,7 +211,7 @@ export async function listScanHosts(probe = false) {
   return out
 }
 
-// Каким сэмплом заполнять {id} в зависимости от модуля/пути
+// Which sample fills {id} depending on the module/path
 const MODULE_ID = {
   Hosts: 'hostId', Users: 'userId', Products: 'productId', UserGroups: 'userGroupId',
   HostGroups: 'hostGroupId', Applications: 'applicationId', Assets: 'assetId',
@@ -220,10 +220,10 @@ const MODULE_ID = {
   ProductOrders: 'orderId', ProductGroups: 'productGroupId', Operators: 'operatorId',
   Branches: 'branchId',
 }
-// Типизированные {id}: срабатывают ТОЛЬКО когда {id} стоит сразу после сегмента
-// (products/time/{id} — да; applicationgroups/applications/{id} — это id приложения).
-// Если нужной сущности на сервере нет — НЕ подставляем «что попало», а честно
-// говорим «создайте её» (без фолбэка: чужой id даст ложный not found).
+// Typed {id}: fire ONLY when {id} comes right after the segment
+// (products/time/{id} — yes; applicationgroups/applications/{id} is an app id).
+// If the needed entity doesn't exist on the server — we DON'T substitute
+// "whatever", but honestly say "create it" (no fallback: a foreign id would give a false not found).
 const PATH_PRIME = [
   [/products\/bundle\/\{/i, 'bundleProductId', 'bundle-продукт'],
   [/products\/time\/\{/i, 'timeProductId', 'продукт «пакет времени»'],
@@ -242,16 +242,16 @@ const PATH_HINTS = [
   [/feeds/i, 'feedId'], [/news/i, 'newsId'],
 ]
 
-// → {url} либо {missing: 'чего не хватает'}
+// → {url} or {missing: 'what is missing'}
 function substitutePath(ep, samples) {
-  // заметка привязана к КОНКРЕТНОМУ пользователю: подставляем согласованную пару
+  // a note is tied to a SPECIFIC user: substitute a consistent pair
   if (/users\/\{id\}\/notes\/\{userNoteId\}/i.test(ep.path)) {
     if (samples.userNoteId == null) return { missing: 'заметка пользователя (добавьте любому пользователю заметку)' }
     return { url: ep.path.replace('{id}', String(samples.userNoteUserId)).replace('{userNoteId}', String(samples.userNoteId)) }
   }
   let p = ep.path
   for (const name of ep.pathParams) {
-    // /productstocks/* принимает только товар с включённым остатком (enableStock)
+    // /productstocks/* accepts only a product with stock enabled (enableStock)
     if (name === 'productId' && /^\/api\/v3\/productstocks\//i.test(ep.path)) {
       if (samples.stockProductId == null) return { missing: 'товар с включённым остатком (галка enableStock)' }
       p = p.replace('{productId}', String(samples.stockProductId))
@@ -264,8 +264,8 @@ function substitutePath(ep, samples) {
         val = samples[prime[1]]
         if (val == null) return { missing: prime[2] }
       } else {
-        // сегмент прямо перед {id} — самый надёжный признак типа сущности:
-        // applicationgroups/applications/{id} — это id ПРИЛОЖЕНИЯ, не группы
+        // the segment right before {id} is the most reliable entity-type hint:
+        // applicationgroups/applications/{id} is an APPLICATION id, not the group
         const seg = ep.path.match(/([a-z]+)\/\{id\}/i)?.[1]
         if (seg) { const h = PATH_HINTS.find(([re]) => re.test(seg)); if (h) val = samples[h[1]] }
         if (val == null) val = samples[MODULE_ID[ep.module]]
@@ -289,18 +289,18 @@ const shapeOf = (body) => {
 }
 
 async function gizmoVersion(spec) {
-  // точный билд (3.0.81) — из /system/version; info.version спеки даёт лишь «v3.0»
+  // exact build (3.0.81) — from /system/version; the spec's info.version gives only "v3.0"
   try {
     const r = await gapi.v3.hosts.client.request('get', '/api/v3/system/version')
     if (r?.result) return String(r.result)
-  } catch { /* старые сборки */ }
+  } catch { /* old builds */ }
   return spec?.info?.version ?? 'unknown'
 }
 
-// ── Диф самих OpenAPI-доков между версиями Gizmo ────────────────────────────
-// Спека каждой версии сохраняется рядом с отчётами (spec_<версия>.json);
-// diffSpecs находит добавленные/удалённые/изменённые эндпоинты С ДЕТАЛЯМИ:
-// параметры (и их обязательность), поля тела запроса и ответа 200.
+// ── Diff of the OpenAPI docs themselves between Gizmo versions ───────────────
+// Each version's spec is saved next to the reports (spec_<version>.json);
+// diffSpecs finds added/removed/changed endpoints WITH DETAILS:
+// parameters (and whether they're required), request-body and 200-response fields.
 const specFileFor = (ver) => `spec_${String(ver).replace(/[^\w.]/g, '_')}.json`
 
 function derefSchema(spec, schema) {
@@ -358,7 +358,7 @@ export function diffSpecs(verA, verB) {
   return diffSpecObjects(JSON.parse(readFileSync(fa, 'utf8')), JSON.parse(readFileSync(fb, 'utf8')), String(verA), String(verB))
 }
 
-// ── Ручное сравнение доков: сохранённые spec_*.json и «текущая версия» с сервера ──
+// ── Manual doc comparison: saved spec_*.json and the "current version" from the server ──
 export function listSpecs() {
   if (!existsSync(REPORTS_DIR)) return []
   return readdirSync(REPORTS_DIR).filter((f) => f.startsWith('spec_') && f.endsWith('.json')).sort().map((file) => {
@@ -382,10 +382,10 @@ export async function diffSpecFiles(a, b) {
   return diffSpecObjects(A.spec, B.spec, A.label, B.label)
 }
 
-// ── Скан МУТАЦИЙ: create → update → delete ТОЛЬКО над своими сущностями ─────
-// Тело POST генерируется из requestBody-схемы OpenAPI; созданная запись
-// обновляется PUT'ом и удаляется. Чужие данные не трогаются. Системные модули
-// (кассы, смены, платежи, сессии...) в блок-листе — их покрывают сценарные тесты.
+// ── MUTATION scan: create → update → delete ONLY on our own entities ────────
+// The POST body is generated from the OpenAPI requestBody schema; the created
+// record is updated with PUT and deleted. No foreign data is touched. System
+// modules (registers, shifts, payments, sessions...) are block-listed — scenario tests cover them.
 const MUT_BLOCK = new Set([
   'Shifts', 'ShiftCounts', 'Registers', 'RegisterTransactions', 'Payments', 'InvoicePayments', 'Invoices',
   'DepositTransactions', 'DepositPayments', 'PointsTransactions', 'StockTransactions', 'AssetTransactions',
@@ -408,8 +408,8 @@ function mutValue(name, prop, spec, samples, uniq, depth) {
   if (/phone|mobile/i.test(name)) return '+79001234567'
   if (/password/i.test(name)) return 'Api_mut_123!'
   if (/url/i.test(name)) return 'https://example.com/x'
-  // enum-подобные поля (типы/статусы/режимы) — 0; «value» уникальнее (пресеты
-  // требуют unique value); остальные числа положительные (валидаторы «must be at least 1»)
+  // enum-like fields (types/statuses/modes) — 0; "value" is more unique (presets
+  // require a unique value); other numbers positive (validators "must be at least 1")
   if (t === 'integer' || t === 'number') {
     if (/type$|status$|mode$|kind$|source$|direction$|options?$/i.test(name)) return 0
     if (/value$/i.test(name)) return 7
@@ -418,8 +418,8 @@ function mutValue(name, prop, spec, samples, uniq, depth) {
   if (t === 'boolean') return false
   return 'api_mut'
 }
-// Сложное поле: любой намёк на объект/ссылку/композицию (в спеке Gizmo часто
-// без явного type). Для *id-правила важно НЕ путать Uid/Guid со строками.
+// Complex field: any hint of an object/ref/composition (the Gizmo spec often
+// has no explicit type). For the *id rule it's important NOT to confuse Uid/Guid with strings.
 const isComplexProp = (prop) => !!(prop?.$ref || prop?.allOf || prop?.oneOf || prop?.anyOf || prop?.properties ||
   prop?.type === 'object' || (Array.isArray(prop?.type) && prop.type.includes('object')) ||
   (prop?.type == null && prop?.enum == null && prop?.format == null))
@@ -432,22 +432,22 @@ function mutBody(spec, schema, samples, uniq, depth = 0) {
   for (const [k, prop] of Object.entries(s.properties)) {
     if (prop.readOnly) continue
     const t = Array.isArray(prop.type) ? prop.type.find((x) => x !== 'null') : prop.type
-    // необязательные сложные поля не шлём (меньше шансов споткнуться о вложенную валидацию)
+    // don't send optional complex fields (less chance of tripping on nested validation)
     if ((isComplexProp(prop) || t === 'array') && !required.includes(k)) { if (t === 'array') out[k] = []; continue }
     out[k] = mutValue(k, prop, spec, samples, uniq, depth)
   }
   return out
 }
 
-// Правка тела по validation-ошибкам сервера: он сам говорит, что не так —
-// «could not be converted to X» (не тот тип / лишняя модель) или «required».
+// Fix the body from the server's validation errors: it tells us what's wrong —
+// "could not be converted to X" (wrong type / extra model) or "required".
 function mutFixFromErrors(body, errors, spec, samples, uniq) {
   let changed = false
   for (const e of errors ?? []) {
     const pn = String(e?.Error?.PropertyName ?? '').replace(/^\$\.?/, '')
     if (!pn) continue
     const msg = (e?.Error?.Messages ?? []).join(' ')
-    // навигация по вложенному пути (model.signalGuid → body.model.signalGuid)
+    // navigate the nested path (model.signalGuid → body.model.signalGuid)
     const segs = pn.split('.').map((s) => s.split('[')[0]).filter(Boolean)
     let tgt = body
     for (let i = 0; i < segs.length - 1; i++) {
@@ -455,7 +455,7 @@ function mutFixFromErrors(body, errors, spec, samples, uniq) {
       tgt = tgt[segs[i]]
     }
     const leaf = segs[segs.length - 1]
-    // «поле model обязательно» — Gizmo местами хочет обёртку {model:{...}}
+    // "the model field is required" — Gizmo sometimes wants a {model:{...}} wrapper
     if (leaf === 'model' && /required/i.test(msg) && !('model' in body)) {
       body.model = { ...body }; changed = true; continue
     }
@@ -465,7 +465,7 @@ function mutFixFromErrors(body, errors, spec, samples, uniq) {
       else if (/System\.String/.test(msg)) { tgt[leaf] = 'api_mut'; changed = true }
       else if (/Int|Decimal|Double|Number/i.test(msg)) { tgt[leaf] = 1; changed = true }
       else if (/Boolean/i.test(msg)) { tgt[leaf] = false; changed = true }
-      else { delete tgt[leaf]; changed = true }   // сложная модель — просто не шлём поле
+      else { delete tgt[leaf]; changed = true }   // complex model — just don't send the field
     } else if (!(leaf in tgt)) { tgt[leaf] = mutValue(leaf, {}, spec, samples, uniq, 0); changed = true }
     else if (tgt[leaf] == null || tgt[leaf] === '') { tgt[leaf] = mutValue(leaf, {}, spec, samples, uniq, 0); changed = true }
   }
@@ -473,7 +473,7 @@ function mutFixFromErrors(body, errors, spec, samples, uniq) {
 }
 
 export async function runMutationScan() {
-  const spec = await loadOpenApiSpec()   // без OpenAPI мутации не сканируем
+  const spec = await loadOpenApiSpec()   // without OpenAPI we don't scan mutations
   const samples = await collectSamples()
   await ensureFixtures(samples)
   const flat = flattenSpec(spec)
@@ -505,7 +505,7 @@ export async function runMutationScan() {
     }
   }
 
-  // модули с парой POST(создать) + DELETE(по id) — жизненный цикл на своих данных
+  // modules with a POST(create) + DELETE(by id) pair — a lifecycle on our own data
   const modules = new Map()
   for (const e of catalog) { if (!modules.has(e.module)) modules.set(e.module, []); modules.get(e.module).push(e) }
   const jobs = []
@@ -529,7 +529,7 @@ export async function runMutationScan() {
       const schema = flat.get(`POST ${create.path}`)?.requestBody?.content?.['application/json']?.schema
       let body = mutBody(spec, schema, samples, uniq)
       let r1 = await call('POST', create.path, body)
-      // до 6 правок тела по подсказкам сервера из validation-ответа
+      // up to 6 body fixes from the server's hints in the validation response
       for (let att = 0; att < 6 && r1.status === 'http-4xx' && r1.httpCode === 400 && Array.isArray(r1._errors); att++) {
         if (!mutFixFromErrors(body, r1._errors, spec, samples, uniq)) break
         r1 = await call('POST', create.path, body)
@@ -568,7 +568,7 @@ export async function runMutationScan() {
   return report
 }
 
-/** Удаление отчётов/доков: file — имя в apitest-reports (без путей). */
+/** Delete reports/docs: file — a name in apitest-reports (no paths). */
 export function deleteReportFile(file) {
   const base = path.basename(String(file))
   if (!/^(v.+|spec_.+|mut_.+)\.json$/.test(base)) throw new Error('можно удалять только отчёты, spec_*.json и mut_*.json')
@@ -577,7 +577,7 @@ export function deleteReportFile(file) {
   unlinkSync(p)
   return { deleted: base }
 }
-/** Очистить все отчёты сканов (сохранённые API-доки spec_* не трогаем). */
+/** Clear all scan reports (saved API docs spec_* are left untouched). */
 export function clearReports() {
   if (!existsSync(REPORTS_DIR)) return { deleted: 0 }
   let n = 0
@@ -587,7 +587,7 @@ export function clearReports() {
   return { deleted: n }
 }
 
-/** Сохранить вручную загруженный OpenAPI-док (скачанный из Scalar другой версии). */
+/** Save a manually uploaded OpenAPI doc (downloaded from another version's Scalar). */
 export function saveSpecUpload(name, content) {
   const spec = JSON.parse(content)
   if (!spec.paths) throw new Error('это не OpenAPI-док: нет поля paths')
@@ -598,10 +598,10 @@ export function saveSpecUpload(name, content) {
   return { file, version: ver, endpoints: Object.keys(spec.paths).length }
 }
 
-// Автозаполнение ОБЯЗАТЕЛЬНЫХ query-параметров: без них Gizmo отвечает
-// «One or more validation errors» — это не баг API, а незаполненная зависимость.
-// Эвристика значения по ИМЕНИ параметра — используется и для required-query из
-// OpenAPI, и для повторной попытки по именам полей из тела 400-ответа.
+// Auto-fill REQUIRED query parameters: without them Gizmo replies
+// "One or more validation errors" — that's not an API bug but an unfilled dependency.
+// Value heuristic by the parameter NAME — used both for the OpenAPI required-query
+// and for a retry using the field names from the 400 response body.
 function guessValue(q, samples, day) {
   if (/datefrom/i.test(q)) return `${day} 00:00:00`
   if (/dateto/i.test(q)) return `${day} 23:59:59`
@@ -616,8 +616,8 @@ function guessValue(q, samples, day) {
   if (/phone|mobile/i.test(q)) return '+79001234567'
   if (/name|text|search|pattern|email|title|source|path/i.test(q)) return 'scan_probe'
   if (/duration|minutes|count|limit|number|slots|amount|rating|type/i.test(q)) return 1
-  // любой *Id — сперва РЕАЛЬНЫЙ образец с сервера (HostId→samples.hostId,
-  // InvoiceId→samples.invoiceId, ShiftId→samples.shiftId…), 1 — последний резерв
+  // any *Id — first a REAL sample from the server (HostId→samples.hostId,
+  // InvoiceId→samples.invoiceId, ShiftId→samples.shiftId…), 1 is the last resort
   if (/id$/i.test(q)) {
     const key = q.split('.').pop()
     return samples[key.charAt(0).toLowerCase() + key.slice(1)] ?? 1
@@ -626,25 +626,25 @@ function guessValue(q, samples, day) {
 }
 
 function fillQuery(ep, samples, day) {
-  // пагинация — та, что ОБЪЯВЛЕНА у эндпоинта: часть ручек page-based
-  // (PageSize/PageNumber), и с курсорным Limit падают SqlDateTime overflow
+  // pagination as DECLARED by the endpoint: some are page-based
+  // (PageSize/PageNumber) and fail with SqlDateTime overflow on a cursor Limit
   const pageBased = (ep.allQuery ?? []).includes('Pagination.PageSize') && !(ep.allQuery ?? []).includes('Pagination.Limit')
   const query = pageBased ? { 'Pagination.PageSize': 1, 'Pagination.PageNumber': 1 } : { 'Pagination.Limit': 1 }
   for (const q of ep.requiredQuery) query[q] = guessValue(q, samples, day)
-  // Объявленные DateFrom/DateTo заполняем ВСЕГДА: без них часть ручек берёт
-  // DateTime.MinValue и падает 500 «SqlDateTime overflow» (payments/transactions)
+  // Declared DateFrom/DateTo are ALWAYS filled: without them some endpoints take
+  // DateTime.MinValue and 500 with "SqlDateTime overflow" (payments/transactions)
   if ((ep.allQuery ?? []).includes('DateFrom') && !query.DateFrom) {
     query.DateFrom = `${day} 00:00:00`; query.DateTo = `${day} 23:59:59`
   }
   if (/reports/i.test(ep.path)) {
     if (!query.DateFrom) { query.DateFrom = `${day} 00:00:00`; query.DateTo = `${day} 23:59:59` }
-    // Отчёты падают 500 без энтити-параметров, хотя спека помечает их optional
-    // (Scalar: /reports/product требует ProductId) — заполняем ВСЕ *Id живыми id.
+    // Reports 500 without entity parameters, even though the spec marks them optional
+    // (Scalar: /reports/product requires ProductId) — fill ALL *Id with live ids.
     for (const q of ep.allQuery ?? []) {
       if (!(q in query) && /id$/i.test(q)) query[q] = guessValue(q, samples, day)
     }
   }
-  // Брони смотрят в БУДУЩЕЕ: прошедшая/пустая дата → HostReservationException InvalidDate
+  // Reservations look into the FUTURE: a past/empty date → HostReservationException InvalidDate
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
   if (/reservations\/availability/i.test(ep.path))
     Object.assign(query, { Start: `${tomorrow} 12:00:00`, Duration: 60, BranchId: samples.branchId ?? 1 })
@@ -653,8 +653,8 @@ function fillQuery(ep, samples, day) {
   return query
 }
 
-// Ошибки-«зависимости»: API работает, но на сервере нет нужного состояния
-// (хост без Gizmo-клиента, отсутствующая сущность и т.п.) — НЕ баги эндпоинта.
+// "Dependency" errors: the API works but the server lacks the required state
+// (a host without a Gizmo client, a missing entity, etc.) — NOT endpoint bugs.
 const DEP_RE = /not connected|not found|does not exist|no such|was thrown/i
 
 const pickHeaders = (h) => {
@@ -668,7 +668,7 @@ const truncBody = (data) => {
   return s.length > 4000 ? s.slice(0, 4000) + `\n… (обрезано, всего ${s.length} символов)` : s
 }
 
-// ── Полный прогон ───────────────────────────────────────────────────────────
+// ── Full run ────────────────────────────────────────────────────────────────
 export async function runFullScan(opts = {}) {
   let spec = null, source = 'openapi'
   let catalog
@@ -678,8 +678,8 @@ export async function runFullScan(opts = {}) {
   const samples = await collectSamples()
   const fixtures = await ensureFixtures(samples)
   const client = gapi.v3.hosts.client
-  // Хост для hostcomputers/* и remotecontrol: нужен ПОДКЛЮЧЁННЫЙ Gizmo-клиент.
-  // Сканер сам пробует все хосты и берёт первый живой; никого — «пропуск» с причиной.
+  // Host for hostcomputers/* and remotecontrol: needs a CONNECTED Gizmo client.
+  // The scanner probes all hosts and takes the first live one; none — a "skip" with a reason.
   let hostState = { ok: false, name: null, reason: 'подключённых хостов не найдено (Gizmo-клиент нигде не запущен)' }
   try {
     const hosts = await listScanHosts(true)
@@ -692,7 +692,7 @@ export async function runFullScan(opts = {}) {
     } else if (opts.hostId) {
       hostState = { ok: false, name: null, reason: `хост #${opts.hostId} офлайн — Gizmo-клиент на нём не запущен` }
     }
-  } catch { /* hostState остаётся «не найдено» */ }
+  } catch { /* hostState stays "not found" */ }
   const day = new Date().toISOString().slice(0, 10)
   const results = new Array(catalog.length)
 
@@ -701,7 +701,7 @@ export async function runFullScan(opts = {}) {
     p, new Promise((_, rej) => setTimeout(() => rej(new Error(`timeout ${CALL_TIMEOUT}ms`)), CALL_TIMEOUT)),
   ])
 
-  // Заголовки запроса — как их реально шлёт клиент (пароль маскируем)
+  // Request headers — as the client actually sends them (password masked)
   const reqHeaders = () => ({
     Authorization: `Basic base64(${config.gizmo.username}:•••)`,
     'Content-Type': 'application/json',
@@ -716,8 +716,8 @@ export async function runFullScan(opts = {}) {
       detail: 'юзерский эндпоинт (bearer-токен игрока) — вне оператора' }
     if (/\/stream$/i.test(ep.path)) return { ...rec, status: 'stream', httpCode: null, ms: 0, shape: null,
       detail: 'потоковый эндпоинт (SSE/stream) — обычным GET не сканируется' }
-    // passthrough-запросы к Gizmo-клиенту хоста: без живого клиента бессмысленны
-    // (hostcomputers/* и удалённое управление хостом)
+    // passthrough requests to the host's Gizmo client: pointless without a live client
+    // (hostcomputers/* and remote host control)
     if (/^\/api\/v3\/(hostcomputers|remotecontrol\/hosts)\//i.test(ep.path) && !hostState.ok)
       return { ...rec, status: 'skip', httpCode: null, ms: 0, shape: null, detail: `пропуск: ${hostState.reason}` }
     const sub = substitutePath(ep, samples)
@@ -732,7 +732,7 @@ export async function runFullScan(opts = {}) {
       const req = { verb: 'GET', url: `${client.baseURL}${url}`, query: q, headers: reqHeaders(), body: null }
       const started = Date.now()
       try {
-        // axios напрямую: нужны статус/заголовки/тело ответа для инспектора
+        // axios directly: we need status/headers/response body for the inspector
         const resp = await withTimeout(client.axios({ method: 'get', url, params: q }))
         return { ...rec, status: 'ok', httpCode: resp.status, ms: Date.now() - started,
           shape: shapeOf(resp.data), detail: '', req,
@@ -752,9 +752,9 @@ export async function runFullScan(opts = {}) {
     }
 
     let out = await attempt(query)
-    // OpenAPI-спека часто НЕ помечает обязательные query — но Gizmo в теле 400
-    // сам называет недостающие поля: либо массив [{Error:{PropertyName}}], либо
-    // ASP.NET-словарь {Field:[...]}. Дозаполняем их эвристикой и повторяем раз.
+    // The OpenAPI spec often does NOT mark required query — but Gizmo names the
+    // missing fields in the 400 body: either an array [{Error:{PropertyName}}] or
+    // an ASP.NET dictionary {Field:[...]}. We fill them heuristically and retry once.
     if (out.status === 'http-4xx' && out.httpCode === 400 && out._errors) {
       const names = []
       if (Array.isArray(out._errors)) {
@@ -766,7 +766,7 @@ export async function runFullScan(opts = {}) {
       const q2 = { ...query }
       let learned = false
       for (const key of names) {
-        // параметр шлём ПОЛНЫМ именем (Pagination.SortBy), значение — по хвосту
+        // send the parameter by its FULL name (Pagination.SortBy), value by the tail
         if (!(key in q2)) { q2[key] = guessValue(key.split('.').pop(), samples, day); learned = true }
       }
       if (learned) {
@@ -776,8 +776,8 @@ export async function runFullScan(opts = {}) {
         out = retry
       }
     }
-    // Часть эндпоинтов не принимает сортировку по Id — кандидатов берём из
-    // СХЕМЫ возвращаемой модели в OpenAPI (имя типа сервер называет в ошибке).
+    // Some endpoints don't accept sorting by Id — we take candidates from the
+    // returned model's SCHEMA in OpenAPI (the server names the type in the error).
     const ms = out.status === 'fail' && out.detail.match(/Order by column .+ is not supported for return type '(\w+)'/i)
     if (ms) {
       const props = Object.keys(spec?.components?.schemas?.[ms[1]]?.properties ?? {})
@@ -788,8 +788,8 @@ export async function runFullScan(opts = {}) {
         if (retry.status === 'ok') { retry.detail = 'сортировка подобрана по схеме модели: ' + cap; out = retry; break }
       }
     }
-    // «Specified entity Id 0, type X not found» — сервер взял дефолтный 0,
-    // потому что нужный query-параметр (XId) вообще не был передан: добавляем.
+    // "Specified entity Id 0, type X not found" — the server took the default 0
+    // because the needed query parameter (XId) wasn't passed at all: we add it.
     const m0 = out.status === 'dep' && out.detail.match(/entity Id 0, type (?:[\w.]+\.)?(\w+) not found/i)
     if (m0) {
       const base = m0[1].replace(/(Model|Member)$/, '')   // BranchModel→Branch, UserMember→User
@@ -801,7 +801,7 @@ export async function runFullScan(opts = {}) {
         out = retry
       }
     }
-    // Аннотации ПОДТВЕРЖДЁННЫХ серверных багов — в отчёте видно причину и обход
+    // Annotations for CONFIRMED server bugs — the report shows the cause and workaround
     if (out.detail) {
       if (/^\/api\/v3\/productstocks\/\{productId\}$/.test(ep.path) && /ShiftException/.test(out.detail)) {
         out.status = 'fail'
@@ -815,8 +815,8 @@ export async function runFullScan(opts = {}) {
     return out
   }
 
-  // Пул из 8 воркеров: сотни эндпоинтов сканируются за десятки секунд,
-  // зависший вызов обрубается таймаутом и помечается fail.
+  // Pool of 8 workers: hundreds of endpoints are scanned in tens of seconds,
+  // a hung call is cut off by the timeout and marked fail.
   let next = 0
   async function worker() {
     while (next < catalog.length) {
@@ -828,7 +828,7 @@ export async function runFullScan(opts = {}) {
 
   const count = (st) => results.filter((r) => r.status === st).length
   const ver = await gizmoVersion(spec)
-  // сохраняем API-док ЭТОЙ версии (spec_3.0.81.json) — база для дифа доков
+  // save THIS version's API doc (spec_3.0.81.json) — the basis for the doc diff
   mkdirSync(REPORTS_DIR, { recursive: true })
   if (spec && !existsSync(path.join(REPORTS_DIR, specFileFor(ver))))
     writeFileSync(path.join(REPORTS_DIR, specFileFor(ver)), JSON.stringify(spec))
@@ -856,7 +856,7 @@ export async function runFullScan(opts = {}) {
   return report
 }
 
-// ── Сохранённые отчёты и diff между версиями ────────────────────────────────
+// ── Saved reports and the diff between versions ─────────────────────────────
 export function listReports() {
   if (!existsSync(REPORTS_DIR)) return []
   return readdirSync(REPORTS_DIR).filter((f) => f.endsWith('.json') && !f.startsWith('spec_')).sort().reverse().map((file) => {
@@ -891,7 +891,7 @@ export function diffReports(fileA, fileB) {
   return {
     a: { file: path.basename(fileA), gizmoVersion: a.gizmoVersion, at: a.at },
     b: { file: path.basename(fileB), gizmoVersion: b.gizmoVersion, at: b.at },
-    // диф самих API-доков (spec_<версия>.json): параметры/тела/ответы
+    // diff of the API docs themselves (spec_<version>.json): parameters/bodies/responses
     specDiff: a.gizmoVersion !== b.gizmoVersion ? diffSpecs(a.gizmoVersion, b.gizmoVersion) : null,
     added, removed, changed,
   }

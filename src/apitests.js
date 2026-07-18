@@ -1,6 +1,6 @@
-// Самопроверка всех используемых Gizmo API: каждый тест зовёт реальный
-// эндпоинт, проверяет форму ответа и убирает за собой (void чека, отмена
-// брони, logout). Результат: {group, name, ok: true|false|'skip', ms, detail}.
+// Self-check of every Gizmo API the sim uses: each test calls a real endpoint,
+// verifies the response shape and cleans up after itself (void an invoice,
+// cancel a reservation, logout). Result: {group, name, ok: true|false|'skip', ms, detail}.
 import { gapi, data, model } from './gizmo.js'
 import { config } from './config.js'
 import { sqlPing, sqlEnabled } from './sql.js'
@@ -8,7 +8,7 @@ import { sqlPing, sqlEnabled } from './sql.js'
 const t = (group, name, fn) => ({ group, name, fn })
 
 const TESTS = [
-  // ── Справочники ────────────────────────────────────────────────────────────
+  // ── Reference data ──────────────────────────────────────────────────────────
   t('Справочники', 'hosts.getHosts', async () => {
     const rows = data(await gapi.v3.hosts.getHosts({ paginationLimit: -1, isDeleted: false }))
     if (!rows.length) throw new Error('пустой список хостов')
@@ -50,7 +50,7 @@ const TESTS = [
     return `${rows.length} ассетов`
   }),
 
-  // ── Сессии ────────────────────────────────────────────────────────────────
+  // ── Sessions ────────────────────────────────────────────────────────────────
   t('Сессии', 'userSessions.getUserSessions', async () => {
     const rows = data(await gapi.v3.userSessions.getUserSessions({ paginationLimit: -1 }))
     const live = rows.filter(s => ((s.state ?? 0) & 1) === 1)
@@ -75,7 +75,7 @@ const TESTS = [
     return `${freeBot.username} → ${freeHost.name}: вход/выход ок`
   }),
 
-  // ── Деньги ────────────────────────────────────────────────────────────────
+  // ── Money ─────────────────────────────────────────────────────────────────
   t('Деньги', 'carts: депозит 1₽ (нал)', async () => {
     const users = data(await gapi.v3.users.getUsers({ paginationLimit: -1 }))
     const bot = users.find(u => u.username?.startsWith(config.botPrefix))
@@ -114,7 +114,7 @@ const TESTS = [
     return `касса: транзакция #${id} записана в смену #${back.shiftId}`
   }),
 
-  // ── Заказы и брони ────────────────────────────────────────────────────────
+  // ── Orders and reservations ─────────────────────────────────────────────────
   t('Заказы', 'productOrders.getProductOrdersActive', async () => {
     const rows = data(await gapi.v3.productOrders.getProductOrdersActive({ paginationLimit: -1 }))
     return `в очереди: ${rows.length}`
@@ -138,7 +138,7 @@ const TESTS = [
     return `бронь #${id} создана и отменена (статус 1)`
   }),
 
-  // ── Смена и отчёты ────────────────────────────────────────────────────────
+  // ── Shift and reports ───────────────────────────────────────────────────────
   t('Смена', 'shifts: активная смена', async () => {
     const rows = data(await gapi.v3.shifts.getShifts({ isActive: true, paginationLimit: 1, paginationIsAsc: false }))
     if (!rows.length) throw new Error('нет активной смены — кассовые операции невозможны')
@@ -164,7 +164,7 @@ const TESTS = [
     return `приложений с временем: ${top.length}`
   }),
 
-  // ── SQL ───────────────────────────────────────────────────────────────────
+  // ── SQL ─────────────────────────────────────────────────────────────────────
   t('SQL', 'прямое подключение (AppStat)', async () => {
     if (!sqlEnabled()) return { skip: 'SQL выключен (нет пароля)' }
     const ok = await sqlPing()

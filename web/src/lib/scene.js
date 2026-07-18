@@ -1,17 +1,17 @@
-// Пиксельная сцена клуба (вид сверху). АВТОПОРТ из src/ui.js PAGE_CLUB —
-// логика 1:1, но данные приходят снаружи: setState(снапшот /api/state) и
-// handleEvent(строка ленты). Камера: колесо-зум, драг-пан, dblclick — вписать.
+// Pixel scene of the club (top-down). AUTO-PORTED from src/ui.js PAGE_CLUB —
+// logic 1:1, but the data comes from outside: setState(/api/state snapshot) and
+// handleEvent(feed line). Camera: wheel-zoom, drag-pan, dblclick — fit.
 export function createScene(cv) {
 
   const ctx = cv.getContext('2d')
   const T = 16
-  // Тема сцены следует теме интерфейса: plain | terraria | doom.
-  // В doom игроки — демоны, персонал — Doomguy; в terraria оператор — Гид.
+  // The scene theme follows the UI theme: plain | terraria | doom.
+  // In doom players are demons, staff is Doomguy; in terraria the operator is the Guide.
   let TH = 'plain'
   const readTheme = () => { TH = document.documentElement.dataset.theme || 'plain' }
   const isStaff = (a) => a.u === 'op' || a.u === 'courier' || a.u === 'chef'
   const SKINS = ['#e8b088', '#d99e73', '#c68a5f', '#f0c09a', '#b87a52']   // тона кожи (Terraria)
-  // Шкуры демонов классического Doom по типажу: имп, хелл-найт, пинки, спектр…
+  // Classic Doom demon skins by trait: imp, hell knight, pinky, spectre…
   const DEMONC = { 'задрот': '#a8623a', 'казуал': '#5a8a3a', 'гурман': '#c46a86', 'молчун': '#767a80', 'залётный': '#b08a4a', 'стример': '#b03a2a' }
   const TRAITC = { 'задрот':'#4a90d9', 'казуал':'#3fb950', 'гурман':'#e0823d', 'молчун':'#78828c', 'залётный':'#d2b322', 'стример':'#e85aad' }
   const HAIRS = ['#2b2019','#5b3a21','#c9a15a','#1c1c22','#7a2e1d','#4b4e57','#8a5db0','#a03b2a','#3a5a8c']
@@ -23,19 +23,19 @@ export function createScene(cv) {
   let afkHostNames = new Set()      // хосты, у которых игрок вышел покурить (AFK)
   const DOOR = { x: 508, y: 588 }   // проём во входной стене
   const BAR = { x: 130, y: 490 }   // куда встают клиенты ПЕРЕД стойкой (сверху)
-  const OP = { x: 178, y: 538 }    // оператор ЗА стойкой (ниже, у полок)
+  const OP = { x: 178, y: 538 }    // operator ЗА стойкой (ниже, у полок)
   const WORLD_H = 664              // высота сцены с учётом улицы-курилки снизу
   const SMOKE = { y: 632 }         // курилка на улице (ниже входной стены)
   const WC = { x: 436, y: 562 }        // туалет — комнатка у нижней стены, правее кухни
   const KITCHEN = { x: 336, y: 476, w: 136, h: 54 }  // кухня — между баром и WC
   const PASS = { x: 333, y: 508 }      // окно выдачи кухня→бар (отсюда стартует курьер)
   const FOODC = ['#e0823d', '#3fb950', '#f0c674', '#e85aad', '#58a6ff', '#d29922']
-  // Выдача заказов: очередь id из событий «✅ выдал заказ», курьер-официант
+  // Order delivery: a queue of ids from '✅ delivered' events, a waiter-courier
   let orderOwners = new Map()          // orderId → username (из state.orders)
   let deliveries = []
   let courier = null
   const smokeSpot = (u) => ({ x: 424 + (hsh(u + 'smk') % 5) * 34, y: SMOKE.y })
-  // Все состояния «человек отошёл» — на его хосте показываем AFK.
+  // All 'person stepped away' states — we show AFK on their host.
   const AWAY_STATES = new Set(['tosmoke', 'tosmoke2', 'smoking', 'fromsmoke', 'fromsmoke2', 'towc', 'inwc', 'fromwc'])
 
   function classify(name) {
@@ -53,24 +53,24 @@ export function createScene(cv) {
     const boots = hosts.filter(h => classify(h.name) === 'boot').sort((a, b) => num(a.name) - num(b.name))
     const add = (h, tx, ty, zone) => {
       const x = tx * T, y = ty * T
-      // Место — ниже стола: персонаж сидит ПЕРЕД монитором (лицом к камере).
+      // Seat — below the desk: the character sits IN FRONT of the monitor (facing the camera).
       const d = { name: h.name, x, y, zone, seat: { x: x + 18, y: y + 44 } }
       desks.push(d); deskByName.set(h.name, d)
     }
     const cons = hosts.filter(h => (h.maxUsers ?? 1) > 1 || h.type === 'endpoint')
       .sort((a, b) => num(a.name) - num(b.name))
     const consSet = new Set(cons.map(h => h.name))
-    // Планировка зависит от поколения мира: число колонок в зале и то, какая
-    // из комнат (VIP или BOOTCAMP) сверху — «новые комнаты» после пересоздания.
+    // The layout depends on the world generation: the number of columns in the hall
+    // and which room (VIP or BOOTCAMP) is on top — "new rooms" after a regeneration.
     const cols = 5 + (layoutSeed % 3)              // 5..7 колонок ПК
     const swapRight = layoutSeed % 2 === 1         // нечётное поколение — BOOT сверху
     pcs.filter(h => !consSet.has(h.name)).forEach((h, i) => add(h, 3 + (i % cols) * 5, 4 + Math.floor(i / cols) * 5, 'pc'))
-    // Шаг 5 тайлов: имя сидящего (y+56) не должно наезжать на подпись следующего ряда
+    // Step of 5 tiles: a sitter's name (y+56) must not overlap the next row's label
     const topRoom = swapRight ? boots : vips
     const botRoom = swapRight ? vips : boots
     topRoom.forEach((h, i) => add(h, 37 + (i % 2) * 12, 3 + Math.floor(i / 2) * 5, swapRight ? 'boot' : 'vip'))
     botRoom.forEach((h, i) => add(h, 37 + (i % 2) * 12, 18 + Math.floor(i / 2) * 5, swapRight ? 'vip' : 'boot'))
-    // Консоли: ТВ + диван на несколько мест (слоты вдоль дивана)
+    // Consoles: TV + a couch with several seats (slots along the couch)
     cons.forEach((h, i) => {
       const tx = 36 + (i % 2) * 13, ty = 30
       const x = tx * T, y = ty * T
@@ -83,7 +83,7 @@ export function createScene(cv) {
     built = true
   }
 
-  // Слот на диване: у каждого сидящего своё место, освобождается при уходе.
+  // Couch slot: each sitter has their own seat, freed on leaving.
   function seatFor(desk, u) {
     if (!desk.seats) return desk.seat
     if (desk.slots[u] == null) {
@@ -113,7 +113,7 @@ export function createScene(cv) {
 
   function setState(s) {
       stateData = s
-      // Пересоздание мира: новый layoutSeed → перестраиваем комнаты и актёров
+      // World regeneration: a new layoutSeed → rebuild the rooms and actors
       if (s.layoutSeed && s.layoutSeed !== layoutSeed) {
         layoutSeed = s.layoutSeed
         built = false
@@ -138,26 +138,26 @@ export function createScene(cv) {
         } else {
           a.couch = desk.zone === 'cons'
           a.hostName = b.hostName
-          // не сбрасываем цель, если человек вышел покурить (SMOKE_STATES)
+          // don't reset the target if the person went out to smoke (SMOKE_STATES)
           if (a.seat !== seat && (a.st === 'sit' || a.st === 'walkin')) {
             a.seat = seat; a.target = seat; if (a.st === 'sit') a.st = 'walkin'
           }
         }
       }
       for (const [u, a] of actors) {
-        // не выгоняем тех, кто у бара или отошёл (курилка/туалет) — пусть завершат
+        // don't evict those at the bar or away (smoking area/WC) — let them finish
         if (!seatedU.has(u) && a.st !== 'walkout' && a.st !== 'tobar' && a.st !== 'atbar'
             && a.st !== 'back' && !AWAY_STATES.has(a.st)) {
           a.st = 'walkout'; a.target = DOOR
         }
       }
       inited = true
-      // кому какой заказ принадлежит — для анимации выдачи курьером
+      // which order belongs to whom — for the courier delivery animation
       for (const o of s.orders) if (o.username) orderOwners.set(o.id, o.username)
       if (orderOwners.size > 200) orderOwners = new Map([...orderOwners].slice(-80))
   }
 
-  // ── События → облачка ────────────────────────────────────────────────────────
+  // ── Events → speech bubbles ─────────────────────────────────────────────────
   const short = (msg) => {
     const parts = msg.split(') ')
     let tail = parts.length > 1 ? parts.slice(1).join(') ') : msg
@@ -169,7 +169,7 @@ export function createScene(cv) {
   function handleEvent(msg) {
     const em = Array.from(msg)[0]
     if ('🏆🌅📝🕐⚙⏸▶'.includes(em)) { banners.push({ text: msg.length > 90 ? msg.slice(0, 89) + '…' : msg, until: Date.now() + 6000 }); return }
-    // «✅ оператор выдал заказ #N» → анимация выдачи курьером
+    // '✅ operator delivered order #N' → courier delivery animation
     if (em === '✅') {
       const mo = msg.match(/#(\d+)/)
       if (mo) deliveries.push(Number(mo[1]))
@@ -179,11 +179,11 @@ export function createScene(cv) {
       const a = actors.get(mu[1])
       a.bubble = { text: short(msg), until: Date.now() + 6000 }
       if (em === '🍔' && a.st === 'sit') { a.st = 'tobar'; a.target = { x: BAR.x + (hsh(a.u) % 60), y: BAR.y } }
-      // «вышел покурить» — реально идёт на улицу через вход (хост остаётся занят/AFK)
+      // 'went out to smoke' — actually walks outside through the entrance (host stays busy/AFK)
       else if (/покурить/.test(msg) && a.st === 'sit') {
         a.st = 'tosmoke'; a.target = DOOR; a.smokeSpot = smokeSpot(a.u)
       }
-      // «в туалет» — отходит в WC внутри клуба и возвращается
+      // 'to the WC' — steps into the WC inside the club and comes back
       else if (/туалет/.test(msg) && a.st === 'sit') {
         a.st = 'towc'; a.target = { x: WC.x + (hsh(a.u) % 12) - 6, y: WC.y }
       }
@@ -195,8 +195,8 @@ export function createScene(cv) {
     }
   }
 
-  // ── Отрисовка ────────────────────────────────────────────────────────────────
-  // ── Terraria-стиль: обводка + затенение ─────────────────────────────────────
+  // ── Rendering ────────────────────────────────────────────────────────────────
+  // ── Terraria style: outline + shading ───────────────────────────────────────
   const OUTLINE = '#0a0c10'
   function shade(hex, amt) {
     const n = parseInt(hex.slice(1), 16)
@@ -205,21 +205,21 @@ export function createScene(cv) {
     else { const f = 1 + amt; r *= f; g *= f; b *= f }
     return 'rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')'
   }
-  // Прямоугольник с тёмной обводкой (как тайл в Террарии)
+  // A rectangle with a dark outline (like a tile in Terraria)
   function outlineRect(x, y, w, h, color) {
     ctx.fillStyle = OUTLINE; ctx.fillRect(x - 1, y - 1, w + 2, h + 2)
     ctx.fillStyle = color; ctx.fillRect(x, y, w, h)
   }
 
-  // Экран «в игре»: не рандомные блёстки, а анимированная сцена — небо/земля,
-  // бегущий персонаж, редкие вспышки-выстрелы + мягкое пульсирующее свечение.
+  // The "in-game" screen: not random sparkles but an animated scene — sky/ground,
+  // a running character, rare muzzle flashes + a soft pulsing glow.
   const SCENE = [
     { sky: '#122438', ground: '#1e3a24', accent: '#54d17a' },  // лес
     { sky: '#241a2e', ground: '#3a2340', accent: '#c56ae0' },  // ночь
     { sky: '#2a1815', ground: '#3a241a', accent: '#e08a3a' },  // пустыня
     { sky: '#101c2e', ground: '#20303e', accent: '#5aa8e0' },  // море
   ]
-  // В теме Doom на мониторах — адские уровни (красное небо, лава, огонь)
+  // In the Doom theme the monitors show hellish levels (red sky, lava, fire)
   const SCENE_DOOM = [
     { sky: '#2a0f0a', ground: '#3a1410', accent: '#ff8a3c' },
     { sky: '#1c1210', ground: '#33201a', accent: '#ffd23c' },
@@ -230,40 +230,40 @@ export function createScene(cv) {
     const list = TH === 'doom' ? SCENE_DOOM : SCENE
     const sc = list[seed % list.length]
     const gy = Math.round(h * 0.62)
-    // Обрезаем всё содержимое строго по прямоугольнику экрана — иначе холмы,
-    // герой и вспышки «вылезают» за рамку монитора.
+    // Clip all content strictly to the screen rectangle — otherwise the hills,
+    // hero and flashes leak past the monitor frame.
     ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip()
     ctx.fillStyle = sc.sky; ctx.fillRect(x, y, w, gy)
     ctx.fillStyle = sc.ground; ctx.fillRect(x, y + gy, w, h - gy)
     ctx.fillStyle = shade(sc.ground, 0.15); ctx.fillRect(x, y + gy, w, 1)
-    // параллакс-холмы (скроллятся)
+    // parallax hills (scrolling)
     const off = Math.floor((t / 40 + seed * 7)) % (w + 8)
     ctx.fillStyle = shade(sc.sky, 0.12)
     for (let i = -1; i < w / 10 + 1; i++) {
       const hx = x + ((i * 10 - off % 10) )
       ctx.fillRect(hx, y + gy - 3, 6, 3)
     }
-    // бегущий персонаж-пиксель (прыжки)
+    // running pixel character (jumping)
     const px = x + 3 + Math.floor((t / 55 + seed) % (w - 6))
     const jump = Math.max(0, Math.sin(t / 130 + seed) * 4) | 0
     ctx.fillStyle = sc.accent; ctx.fillRect(px, y + gy - 4 - jump, 3, 4)
-    // враги навстречу
+    // enemies coming toward you
     const ex = x + w - 4 - Math.floor((t / 70 + seed * 3) % (w - 6))
     ctx.fillStyle = '#f0563f'; ctx.fillRect(ex, y + gy - 3, 3, 3)
-    // редкая вспышка-выстрел
+    // rare muzzle flash
     if ((Math.floor(t / 90) + seed) % 5 === 0) {
       ctx.fillStyle = '#fff6c0'; ctx.fillRect(px + 3, y + gy - 3 - jump, Math.min(ex - px - 3, w), 1)
     }
-    // HUD-полоска
+    // HUD bar
     ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(x + 1, y + 1, w - 2, 2)
     ctx.fillStyle = sc.accent; ctx.fillRect(x + 1, y + 1, Math.max(2, (w - 2) * (0.4 + 0.5 * Math.abs(Math.sin(t / 700 + seed)))), 2)
-    // мягкое свечение экрана (пульс)
+    // soft screen glow (pulse)
     const glow = 0.06 + 0.05 * (0.5 + 0.5 * Math.sin(t / 380 + seed))
     ctx.fillStyle = 'rgba(150,200,255,' + glow.toFixed(3) + ')'; ctx.fillRect(x, y, w, h)
     ctx.restore()
   }
 
-  // Ореол свечения вокруг включённого экрана (в тёмном зале)
+  // A glow halo around a lit screen (in the dark hall)
   function screenHalo(x, y, w, h, t, seed) {
     const a = 0.05 + 0.03 * (0.5 + 0.5 * Math.sin(t / 380 + seed))
     const g = ctx.createRadialGradient(x + w / 2, y + h / 2, 2, x + w / 2, y + h / 2, w)
@@ -279,16 +279,16 @@ export function createScene(cv) {
     ctx.fillStyle = '#5f656e'; ctx.fillRect(x + 26, y + 6, 3, 10) // ручки
     ctx.fillRect(x + 26, y + 25, 3, 12)
     ctx.fillStyle = '#8b9099'; ctx.fillRect(x + 26, y + 6, 1, 10); ctx.fillRect(x + 26, y + 25, 1, 12)
-    // стеклянная витрина снизу с едой/напитками
+    // a glass display at the bottom with food/drinks
     outlineRect(x + 4, y + 24, 18, 14, '#16222e')
     const food = ['#e0823d', '#3fb950', '#f0c674', '#e85aad', '#58a6ff']
     for (let i = 0; i < 5; i++) { ctx.fillStyle = food[i]; ctx.fillRect(x + 6 + (i % 3) * 5, y + 27 + (i > 2 ? 5 : 0), 4, 4) }
   }
 
-  // Задний бар: стеллаж с бутылками + два холодильника
+  // Back bar: a bottle shelf + two fridges
   function drawBackBar() {
     const by = 556
-    // стеллаж со стеклянными полками
+    // a rack with glass shelves
     outlineRect(16, by, 150, 32, '#3a2c1c')
     ctx.fillStyle = '#4d3a25'; ctx.fillRect(18, by + 2, 146, 3)
     ctx.fillStyle = 'rgba(90,120,140,.25)'; ctx.fillRect(18, by + 13, 146, 3)   // стеклянная полка
@@ -305,14 +305,14 @@ export function createScene(cv) {
     }
     drawFridge(188, by - 4)
     drawFridge(232, by - 4)
-    // микроволновка / кофемашина на тумбе
+    // microwave / coffee machine on the cabinet
     outlineRect(280, by + 6, 30, 22, '#2b3038')
     ctx.fillStyle = '#161a20'; ctx.fillRect(283, by + 9, 18, 12)
     ctx.fillStyle = '#3fb950'; ctx.fillRect(303, by + 10, 4, 2)
     ctx.fillStyle = '#d29922'; ctx.fillRect(303, by + 14, 4, 6)
   }
 
-  // Дымок над курящим (пиксельные клубы, поднимаются и тают)
+  // Smoke above a smoker (pixel puffs, rising and fading)
   function drawSmoke(x, y, t) {
     for (let i = 0; i < 3; i++) {
       const ph = (t / 1000 + i * 0.34) % 1
@@ -325,7 +325,7 @@ export function createScene(cv) {
     }
   }
 
-  // Клубный кот — бродит по залу, иногда замирает
+  // The club cat — wanders the hall, sometimes freezes
   let cat = { x: 260, y: 300, tx: 260, ty: 300, next: 0, dir: 1, moving: false }
   function updateCat(t, dt) {
     if (t > cat.next) {
@@ -341,17 +341,17 @@ export function createScene(cv) {
     const x = Math.round(cat.x), y = Math.round(cat.y), d = cat.dir
     const b = TH === 'doom' ? '#7a2e1d' : '#42474f'   // в аду вместо кота — адский зверёк
     ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(x - 6, y, 13, 2)
-    // хвост качается
+    // the tail sways
     const tw = Math.round(Math.sin(t / 300) * 2)
     ctx.fillStyle = OUTLINE; ctx.fillRect(x - d * 8 - 1, y - 7 + tw, 4, 6)
     ctx.fillStyle = b; ctx.fillRect(x - d * 8, y - 6 + tw, 2, 4)
-    // тело
+    // body
     ctx.fillStyle = OUTLINE; ctx.fillRect(x - 6, y - 6, 12, 6)
     ctx.fillStyle = b; ctx.fillRect(x - 5, y - 5, 10, 4)
     ctx.fillStyle = shade(b, 0.2); ctx.fillRect(x - 5, y - 5, 10, 1)
-    // лапки
+    // paws
     ctx.fillStyle = OUTLINE; ctx.fillRect(x - 4, y - 1, 2, 3); ctx.fillRect(x + 2, y - 1, 2, 3)
-    // голова по направлению
+    // head by direction
     const hx = x + d * 5
     ctx.fillStyle = OUTLINE; ctx.fillRect(hx - 3, y - 9, 7, 7)
     ctx.fillStyle = b; ctx.fillRect(hx - 2, y - 8, 5, 5)
@@ -381,7 +381,7 @@ export function createScene(cv) {
     ctx.fillStyle = '#c04040'; ctx.fillRect(cx - 1, cy - 1, 2, 2)
   }
 
-  // Настенный факел с живым пламенем и тёплым светом (Terraria/Doom)
+  // A wall torch with a living flame and warm light (Terraria/Doom)
   function drawTorch(x, y, t) {
     const g = ctx.createRadialGradient(x + 1, y - 3, 2, x + 1, y - 3, 30)
     g.addColorStop(0, 'rgba(255,160,60,.22)'); g.addColorStop(1, 'rgba(255,160,60,0)')
@@ -393,10 +393,10 @@ export function createScene(cv) {
     ctx.fillStyle = '#ffd23c'; ctx.fillRect(x, y - 4 + (f === 2 ? 1 : 0), 2, 3)
   }
 
-  // Улица за входом — своя для каждой темы: город / лес Террарии / ад Doom
+  // The street beyond the entrance — one per theme: city / Terraria forest / Doom hell
   function drawOutdoor(t) {
     if (TH === 'terraria') {
-      // лесная опушка: земля, трава, деревья, светлячки
+      // a forest edge: ground, grass, trees, fireflies
       ctx.fillStyle = '#241a10'; ctx.fillRect(0, 600, 1024, 64)                     // земля
       ctx.fillStyle = OUTLINE; ctx.fillRect(0, 600, 1024, 2)
       ctx.fillStyle = '#2f7d3a'; ctx.fillRect(0, 602, 1024, 5)                      // трава
@@ -420,7 +420,7 @@ export function createScene(cv) {
       return
     }
     if (TH === 'doom') {
-      // адская пустошь: тёмный камень, светящиеся трещины лавы, кости
+      // a hellish wasteland: dark stone, glowing lava cracks, bones
       ctx.fillStyle = '#170d0b'; ctx.fillRect(0, 600, 1024, 64)
       ctx.fillStyle = OUTLINE; ctx.fillRect(0, 600, 1024, 2)
       for (let i = 0; i < 9; i++) {                                                 // трещины лавы
@@ -434,7 +434,7 @@ export function createScene(cv) {
       for (const [bx, by] of [[250, 634], [820, 620], [940, 646]]) {                // кости
         ctx.fillStyle = '#cfc4ae'; ctx.fillRect(bx, by, 12, 2); ctx.fillRect(bx - 2, by - 2, 3, 6); ctx.fillRect(bx + 11, by - 2, 3, 6)
       }
-      // пентаграмма на камне (слабое красное свечение)
+      // a pentagram on the stone (faint red glow)
       const px = 150, py = 630, pr = 14
       ctx.strokeStyle = 'rgba(255,60,40,' + (0.35 + 0.2 * Math.sin(t / 600)).toFixed(2) + ')'
       ctx.lineWidth = 1.5
@@ -453,46 +453,46 @@ export function createScene(cv) {
     ctx.fillStyle = '#090b0f'; ctx.fillRect(0, 600, 1024, 64)          // ночная улица
     ctx.fillStyle = '#171a20'; ctx.fillRect(360, 600, 320, 60)         // тротуар
     for (let x = 360; x < 680; x += 20) { ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(x, 600, 1, 60) }
-    // свет фонаря (тёплый круг на тротуаре)
+    // lamp light (a warm circle on the pavement)
     const g = ctx.createRadialGradient(650, 626, 4, 650, 626, 70)
     g.addColorStop(0, 'rgba(255,220,140,.22)'); g.addColorStop(1, 'rgba(255,220,140,0)')
     ctx.fillStyle = g; ctx.fillRect(580, 600, 140, 64)
-    // столб фонаря
+    // lamp post
     ctx.fillStyle = '#2a2f38'; ctx.fillRect(648, 604, 4, 22)
     outlineRect(642, 600, 16, 6, '#d9b45a'); ctx.fillStyle = '#fff3c0'; ctx.fillRect(644, 601, 12, 3)
-    // лавочка
+    // bench
     outlineRect(384, 636, 60, 6, '#5b3a21'); ctx.fillStyle = '#6d4a29'; ctx.fillRect(384, 636, 60, 2)
     outlineRect(388, 642, 4, 8, '#3a2416'); outlineRect(436, 642, 4, 8, '#3a2416')
     outlineRect(384, 628, 60, 3, '#4a3020')  // спинка
-    // урна-пепельница
+    // ashtray bin
     outlineRect(560, 632, 10, 14, '#3a3f47'); ctx.fillStyle = '#20242c'; ctx.fillRect(562, 634, 6, 2)
-    // куст
+    // bush
     ctx.fillStyle = OUTLINE; ctx.fillRect(486, 632, 20, 14); ctx.fillStyle = '#25602f'; ctx.fillRect(487, 633, 18, 12)
     ctx.fillStyle = '#317a3c'; ctx.fillRect(490, 635, 6, 5); ctx.fillStyle = '#276634'; ctx.fillRect(498, 638, 5, 4)
-    // подпись
+    // label
     ctx.fillStyle = 'rgba(139,148,158,.55)'; ctx.font = 'bold 10px monospace'; ctx.fillText('🚬 КУРИЛКА', 384, 616)
   }
 
-  // ── КУХНЯ: повар готовит заказы, тикеты «в работе», плита с паром ──────────
+  // ── KITCHEN: a cook prepares orders, tickets 'in progress', a steaming stove ──
   function drawKitchen(t) {
     const { x, y, w, h } = KITCHEN
-    // комната со светлой плиткой
+    // a room with light tiles
     outlineRect(x, y, w, h, '#262d36')
     for (let ty = 0; ty < Math.floor(h / 8); ty++) for (let tx = 0; tx < Math.floor(w / 8); tx++) {
       ctx.fillStyle = (tx + ty) % 2 ? '#3b444f' : '#434d5a'
       ctx.fillRect(x + 2 + tx * 8, y + 2 + ty * 8, 8, 8)
     }
-    // окно выдачи в бар (слева, проём в стене)
+    // pass window to the bar (left, an opening in the wall)
     ctx.fillStyle = '#161b22'; ctx.fillRect(x - 3, y + 24, 6, 18)
     ctx.fillStyle = '#4d3a25'; ctx.fillRect(x - 4, y + 40, 8, 3)  // полочка окна
-    // разделочный стол (сталь) вдоль верха
+    // cutting table (steel) along the top
     outlineRect(x + 6, y + 10, 62, 11, '#9aa4ae')
     ctx.fillStyle = '#c3cbd3'; ctx.fillRect(x + 6, y + 10, 62, 2)
-    // нарезка на столе
+    // chopped food on the table
     ctx.fillStyle = '#f85149'; ctx.fillRect(x + 12, y + 14, 4, 3)
     ctx.fillStyle = '#3fb950'; ctx.fillRect(x + 19, y + 14, 5, 2)
     ctx.fillStyle = '#f0c674'; ctx.fillRect(x + 27, y + 14, 4, 3)
-    // плита справа: корпус, конфорки светятся, сковорода с прыгающими ингредиентами
+    // stove on the right: body, glowing burners, a pan with bouncing ingredients
     outlineRect(x + 84, y + 8, 40, 16, '#30363f')
     ctx.fillStyle = '#3d444e'; ctx.fillRect(x + 84, y + 8, 40, 2)
     for (const bx of [x + 92, x + 110]) {
@@ -501,18 +501,18 @@ export function createScene(cv) {
       ctx.beginPath(); ctx.arc(bx, y + 16, 5, 0, 7); ctx.fill()
       ctx.fillStyle = '#1a1f26'; ctx.beginPath(); ctx.arc(bx, y + 16, 3, 0, 7); ctx.fill()
     }
-    // сковорода на левой конфорке
+    // pan on the left burner
     ctx.fillStyle = OUTLINE; ctx.beginPath(); ctx.arc(x + 92, y + 16, 6, 0, 7); ctx.fill()
     ctx.fillStyle = '#22262d'; ctx.beginPath(); ctx.arc(x + 92, y + 16, 5, 0, 7); ctx.fill()
     const jump = Math.abs(Math.sin(t / 160)) * 3
     ctx.fillStyle = '#e0823d'; ctx.fillRect(x + 90, y + 13 - jump, 3, 3)
     ctx.fillStyle = '#3fb950'; ctx.fillRect(x + 94, y + 14 - jump * 0.6, 2, 2)
-    // пар над плитой
+    // steam over the stove
     drawSmoke(x + 92, y + 4, t)
     drawSmoke(x + 110, y + 6, t + 700)
-    // вытяжка
+    // range hood
     outlineRect(x + 86, y - 2, 36, 6, '#3a414b')
-    // рейл тикетов: заказы в готовке (жёлтые мигают) и новые (серые)
+    // ticket rail: orders being cooked (yellow blink) and new ones (gray)
     const orders = (stateData?.orders ?? []).slice(0, 6)
     orders.forEach((o, i) => {
       const txx = x + 6 + i * 21, tyy = y + 26
@@ -528,7 +528,7 @@ export function createScene(cv) {
       ctx.fillStyle = 'rgba(139,148,158,.5)'; ctx.font = '8px monospace'
       ctx.fillText('заказов нет', x + 8, y + 38)
     }
-    // повар за столом (колпак поверх причёски, нож «шинкует»)
+    // the cook at the table (chef's hat over the hair, a knife 'chopping')
     const chef = { x: x + 36, y: y + 48, name: '', shirt: '#f0f0ef', hair: '#5b3a21', st: 'atbar', u: 'chef' }
     drawPerson(chef, t)
     const cy = y + 48
@@ -540,50 +540,50 @@ export function createScene(cv) {
     const chop = Math.sin(t / 120) * 2
     ctx.fillStyle = OUTLINE; ctx.fillRect(x + 43, cy - 16 + chop, 8, 3)
     ctx.fillStyle = '#c3cbd3'; ctx.fillRect(x + 44, cy - 15 + chop, 6, 1)  // нож
-    // неоновая подпись
+    // neon label
     ctx.font = 'bold 10px monospace'
     ctx.shadowColor = 'rgba(240,180,80,.9)'; ctx.shadowBlur = 6
     ctx.fillStyle = '#f5c97a'; ctx.fillText('КУХНЯ', x + 4, y - 5)
     ctx.shadowBlur = 0
   }
 
-  // Туалет — нормальная комнатка у нижней стены: светлая плитка, две кабинки
-  // с закрытыми дверями, раковина с краном и зеркалом, дверной проём сверху.
+  // WC — a proper little room by the bottom wall: light tiles, two stalls
+  // with closed doors, a sink with a tap and a mirror, a doorway on top.
   function drawWC() {
     const x = WC.x, y = WC.y
-    // стены комнаты
+    // room walls
     outlineRect(x - 34, y - 28, 68, 52, '#2a3038')
-    // светлая плитка пола (шахматка)
+    // light floor tiles (checkerboard)
     for (let ty = 0; ty < 6; ty++) for (let tx = 0; tx < 8; tx++) {
       ctx.fillStyle = (tx + ty) % 2 ? '#39424e' : '#414b58'
       ctx.fillRect(x - 32 + tx * 8, y - 26 + ty * 8, 8, 8)
     }
-    // дверной проём сверху (вход из зала) + коврик
+    // doorway on top (entrance from the hall) + a mat
     ctx.fillStyle = '#39424e'; ctx.fillRect(x - 8, y - 30, 16, 4)
     ctx.fillStyle = '#4a5462'; ctx.fillRect(x - 8, y - 31, 16, 2)
-    // две кабинки с дверями (внизу комнаты)
+    // two stalls with doors (at the bottom of the room)
     for (const dx of [-30, 2]) {
       outlineRect(x + dx, y - 4, 28, 26, '#31404f')                    // стенки кабинки
-      outlineRect(x + dx + 3, y - 1, 22, 21, '#3d5064')                // дверь
+      outlineRect(x + dx + 3, y - 1, 22, 21, '#3d5064')                // door
       ctx.fillStyle = shade('#3d5064', 0.22); ctx.fillRect(x + dx + 3, y - 1, 22, 2)   // блик двери
       ctx.fillStyle = '#0f141a'; ctx.fillRect(x + dx + 3, y + 17, 22, 3)               // щель снизу
       ctx.fillStyle = '#c9a15a'; ctx.fillRect(x + dx + 21, y + 8, 2, 4)                // ручка
       ctx.fillStyle = '#8b949e'; ctx.fillRect(x + dx + 11, y + 3, 6, 6)                // табличка на двери
       ctx.fillStyle = '#31404f'; ctx.fillRect(x + dx + 13, y + 5, 2, 2)
     }
-    // раковина слева сверху: зеркало, чаша, кран
+    // sink top-left: mirror, basin, tap
     ctx.fillStyle = 'rgba(160,200,230,.28)'; ctx.fillRect(x - 30, y - 24, 14, 9)       // зеркало
     ctx.strokeStyle = '#0a0c10'; ctx.strokeRect(x - 30.5, y - 24.5, 15, 10)
     outlineRect(x - 29, y - 12, 12, 6, '#d5d9de')                                      // чаша
     ctx.fillStyle = '#8b9099'; ctx.fillRect(x - 24, y - 15, 2, 4)                      // кран
-    // неон-табличка WC над дверью
+    // neon WC sign above the door
     ctx.font = 'bold 10px monospace'
     ctx.shadowColor = 'rgba(120,200,255,.9)'; ctx.shadowBlur = 6
     ctx.fillStyle = '#9fd4ff'; ctx.fillText('WC', x - 7, y - 34)
     ctx.shadowBlur = 0
   }
 
-  // Торговый автомат: светящаяся витрина с банками, работает и ночью
+  // Vending machine: a glowing display of cans, works at night too
   function drawVending(x, y, t) {
     const pulse = 0.25 + 0.08 * Math.sin(t / 600)
     const g = ctx.createRadialGradient(x + 13, y + 20, 4, x + 13, y + 20, 42)
@@ -601,22 +601,22 @@ export function createScene(cv) {
   }
 
   function drawProps(t) {
-    // вывеска над залом — цвет неона по теме
+    // sign above the hall — neon color by theme
     const signC = TH === 'doom' ? ['#ff5a3c', '#ff8a6a'] : TH === 'terraria' ? ['#ffd24a', '#ffe08a'] : ['#58a6ff', '#7cc0ff']
     ctx.textAlign = 'center'; ctx.font = 'bold 15px system-ui'
     ctx.shadowColor = signC[0]; ctx.shadowBlur = 10
     ctx.fillStyle = signC[1]; ctx.fillText('GIZMO', 250, 19)
     ctx.shadowBlur = 0; ctx.textAlign = 'left'
-    // торговый автомат у стены зала
+    // vending machine by the hall wall
     drawVending(494, 320, t)
-    // растения по углам зала (в аду не растут — вместо них факелы)
+    // plants in the hall corners (nothing grows in hell — torches instead)
     if (TH === 'doom') { drawTorch(505, 54, t); drawTorch(30, 464, t); drawTorch(505, 244, t) }
     else { drawPlant(505, 60); drawPlant(30, 470); drawPlant(505, 250) }
-    // факелы на верхней стене (Terraria — уют, Doom — ад)
+    // torches on the top wall (Terraria — cozy, Doom — hell)
     if (TH !== 'plain') { drawTorch(330, 8, t); drawTorch(370, 8, t) }
-    // часы на верхней стене
+    // clock on the top wall
     drawClock(430, 13)
-    // коврик у входа: в Doom — пентаграмма, иначе WELCOME
+    // entrance mat: a pentagram in Doom, otherwise WELCOME
     if (TH === 'doom') {
       outlineRect(478, 560, 64, 24, '#241014'); ctx.fillStyle = '#2e1418'; ctx.fillRect(482, 564, 56, 16)
       const px = 510, py = 572, pr = 9
@@ -632,14 +632,14 @@ export function createScene(cv) {
       outlineRect(478, 560, 64, 24, '#3a2c40'); ctx.fillStyle = '#4a3a52'; ctx.fillRect(482, 564, 56, 16)
       ctx.fillStyle = '#5c4a66'; ctx.font = '7px monospace'; ctx.textAlign = 'center'; ctx.fillText('WELCOME', 510, 574); ctx.textAlign = 'left'
     }
-    // постеры на верхней стене
+    // posters on the top wall
     const pcol = TH === 'doom' ? ['#ff3b2f', '#ff8a3c', '#cfc4ae'] : ['#f85149', '#3fb950', '#d29922']
     for (let i = 0; i < 3; i++) { outlineRect(60 + i * 34, 4, 24, 16, '#11151b'); ctx.fillStyle = pcol[i]; ctx.fillRect(63 + i * 34, 7, 18, 6); ctx.fillStyle = '#586170'; ctx.fillRect(63 + i * 34, 14, 18, 3) }
     drawKitchen(t)
     drawWC()
   }
 
-  // Палитры пола/стен per-тема: [зал, BOOT, VIP, консоли, бар, стена, блик стены]
+  // Per-theme floor/wall palettes: [hall, BOOT, VIP, consoles, bar, wall, wall highlight]
   const FLOORPAL = {
     plain:    { hall: ['#14161c', '#171a21'], boot: ['#0f1b18', '#121f1b'], vip: ['#1a1526', '#1d1729'], cons: ['#211318', '#24151b'], bar: ['#221a12', '#251d14'], wall: '#2a3038', wallHi: '#343b45' },
     terraria: { hall: ['#31241a', '#362a1e'], boot: ['#1c2e14', '#20331a'], vip: ['#2a1c30', '#2e2036'], cons: ['#33161b', '#371a20'], bar: ['#3a2b16', '#3f2f1a'], wall: '#4a3826', wallHi: '#5a462f' },
@@ -658,7 +658,7 @@ export function createScene(cv) {
       if (ty >= 30 && tx <= 20) c = (tx + ty) % 2 ? P.bar[0] : P.bar[1]               // бар
       ctx.fillStyle = c; ctx.fillRect(tx * T, ty * T, T, T)
     }
-    // фактура: доски (Terraria) / стальная сетка с заклёпками (Doom)
+    // texture: planks (Terraria) / a steel grid with rivets (Doom)
     if (TH === 'terraria') {
       ctx.fillStyle = 'rgba(0,0,0,.16)'
       for (let ty = 1; ty <= 38; ty++) ctx.fillRect(0, ty * T - 1, 1024, 1)
@@ -668,9 +668,9 @@ export function createScene(cv) {
       ctx.fillStyle = 'rgba(120,110,100,.13)'
       for (let ty = 2; ty <= 36; ty += 2) for (let tx = 1; tx < 64; tx += 2) ctx.fillRect(tx * T, ty * T - 2, 2, 2)
     }
-    // стены
+    // walls
     ctx.fillStyle = P.wall
-    // Верхняя стена ТОЛСТАЯ — на ней висят вывеска, часы и постеры
+    // The top wall is THICK — the sign, clock and posters hang on it
     ctx.fillRect(0, 0, 1024, 26)
     ctx.fillStyle = P.wallHi; ctx.fillRect(0, 0, 1024, 3)                 // блик верха
     ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(0, 26, 1024, 4)        // тень стены на пол
@@ -679,10 +679,10 @@ export function createScene(cv) {
     ctx.fillRect(526, 6, 5, 554)   // стена VIP/BOOT/КОНСОЛИ (внизу проход)
     ctx.fillRect(531, 268, 490, 5) // перегородка VIP|BOOT
     ctx.fillRect(531, 428, 490, 5) // перегородка BOOT|КОНСОЛИ
-    // дверь
+    // door
     ctx.fillStyle = '#0d1117'; ctx.fillRect(488, 590, 44, 10)
     ctx.fillStyle = '#d29922'; ctx.fillRect(488, 588, 44, 3)
-    // подписи зон — лёгкий неон в цвет зоны
+    // zone labels — light neon in the zone's color
     ctx.font = 'bold 11px monospace'
     const neon = (txt, x, y, color) => {
       ctx.shadowColor = color; ctx.shadowBlur = 7
@@ -702,14 +702,14 @@ export function createScene(cv) {
     ctx.fillStyle = 'rgba(139,148,158,.5)'; ctx.fillText('ВХОД →', 430, 585)
     drawOutdoor(t)   // улица-курилка снизу
     drawProps(t)     // растения, часы, вывеска, постеры, коврик, туалет
-    // задний бар (полки/холодильники) — рисуем ПЕРЕД оператором, он встаёт спереди
+    // the back bar (shelves/fridges) — drawn BEFORE the operator, who stands in front
     drawBackBar()
-    // барная стойка (клиенты подходят сверху, оператор — снизу за ней)
+    // the bar counter (clients approach from the top, the operator is below behind it)
     outlineRect(20, 500, 310, 15, '#3a2c1c')
-    ctx.fillStyle = '#5a4529'; ctx.fillRect(20, 500, 310, 3)          // столешница-блик
+    ctx.fillStyle = '#5a4529'; ctx.fillRect(20, 500, 310, 3)          // deskешница-блик
     ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(20, 512, 310, 3)  // тень нижнего края
     for (let i = 0; i < 310; i += 26) { ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(20 + i, 503, 1, 9) } // доски
-    // заказы на столешнице (со стороны клиентов, сверху)
+    // orders on the counter (on the clients' side, at the top)
     const q = stateData ? stateData.orders.length : 0
     for (let i = 0; i < Math.min(q, 11); i++) {
       const ox = 30 + i * 26
@@ -731,7 +731,7 @@ export function createScene(cv) {
       if (on && afkHostNames.has(d.name)) drawAfk(d.x, d.y - 8, 64, 22, t)
       outlineRect(d.x + 24, d.y + 20, 16, 5, '#1a1f27')            // приставка
       ctx.fillStyle = '#3fb950'; ctx.fillRect(d.x + 26, d.y + 22, 3, 1)
-      // диван со спинкой и подлокотниками
+      // a couch with a back and armrests
       outlineRect(d.x - 2, d.y + 34, 68, 18, '#5a2e35')
       ctx.fillStyle = '#6d3941'; ctx.fillRect(d.x - 2, d.y + 34, 68, 5)
       ctx.fillStyle = shade('#5a2e35', -0.3); ctx.fillRect(d.x - 2, d.y + 49, 68, 3)
@@ -741,7 +741,7 @@ export function createScene(cv) {
       ctx.fillText(d.name + cap, d.x, d.y - 17)
       return
     }
-    // монитор на ножке (обведённый, с бликом рамки)
+    // a monitor on a stand (outlined, with a frame highlight)
     if (on) screenHalo(d.x + 6, d.y - 4, 24, 15, t, hsh(d.name) % 7)
     ctx.fillStyle = '#151920'; ctx.fillRect(d.x + 14, d.y + 11, 8, 4)  // ножка
     outlineRect(d.x + 4, d.y - 6, 28, 19, '#242932')
@@ -749,22 +749,22 @@ export function createScene(cv) {
     outlineRect(d.x + 6, d.y - 4, 24, 15, '#0a0d12')
     if (on) drawScreen(d.x + 6, d.y - 4, 24, 15, hsh(d.name) % 97, t)
     if (on && afkHostNames.has(d.name)) drawAfk(d.x + 6, d.y - 4, 24, 15, t)
-    // стол
+    // desk
     const deskC = d.zone === 'vip' ? '#3d3450' : d.zone === 'boot' ? '#2c463c' : '#333a45'
     outlineRect(d.x, d.y + 14, 36, 12, deskC)
     ctx.fillStyle = shade(deskC, 0.18); ctx.fillRect(d.x, d.y + 14, 36, 2)   // блик столешницы
     ctx.fillStyle = shade(deskC, -0.3); ctx.fillRect(d.x, d.y + 24, 36, 2)   // тень
-    // клавиатура и мышь
+    // keyboard and mouse
     outlineRect(d.x + 8, d.y + 17, 14, 5, '#232830')
     ctx.fillStyle = '#4b5563'
     for (let k = 0; k < 5; k++) ctx.fillRect(d.x + 9 + k * 2.6, d.y + 18, 2, 2)
     outlineRect(d.x + 26, d.y + 18, 3, 4, '#232830')
-    // имя хоста над монитором
+    // host name above the monitor
     ctx.fillStyle = 'rgba(160,170,180,.75)'; ctx.font = 'bold 9px monospace'
     ctx.fillText(d.name, d.x + 4, d.y - 9)
   }
 
-  // Затемняем экран + значок «пауза» и мигающий AFK: игрок отошёл, хост занят.
+  // Dim the screen + a 'pause' icon and a blinking AFK: the player stepped away, host busy.
   function drawAfk(x, y, w, h, t) {
     ctx.fillStyle = 'rgba(6,8,12,.55)'; ctx.fillRect(x, y, w, h)
     const cx = x + w / 2, cy = y + h / 2 - 1
@@ -775,8 +775,8 @@ export function createScene(cv) {
     }
   }
 
-  // Причёска: аккуратная «шапка» по верху головы. БЕЗ боковых прядей вдоль лица —
-  // иначе голова выглядит как шлем/ушанка. Бока головы (кожа) остаются открытыми.
+  // Hair: a neat "cap" over the top of the head. WITHOUT side strands along the
+  // face — otherwise the head looks like a helmet/ushanka. The sides (skin) stay open.
   function drawHair(cx, fy, col, style) {
     const top = fy - 33            // верх головы
     const put = (ox, oy, w, h) => {
@@ -804,21 +804,21 @@ export function createScene(cv) {
 
   function drawPerson(a, t) {
     const sit = a.st === 'sit'
-    // Сидящий на диване — «утоплен»: без ног, чуть ниже, подушка поверх бёдер.
+    // A couch sitter is 'sunk in': no legs, a bit lower, a cushion over the thighs.
     const couchSit = sit && a.couch
     const walk = !sit && a.st !== 'atbar' && a.st !== 'smoking'
     const isOp = a.name === 'оператор'
     const x = Math.round(a.x), y = Math.round(a.y)
-    // ── Тематические образы ──
+    // ── Themed looks ──
     const demon = TH === 'doom' && !isStaff(a)           // игроки в Doom — демоны
     const doomguy = TH === 'doom' && isStaff(a)          // персонал — Doomguy
-    const guide = TH === 'terraria' && a.u === 'op'      // оператор в Terraria — Гид
+    const guide = TH === 'terraria' && a.u === 'op'      // operator в Terraria — Гид
     let skin = '#e8b088', shirt = a.shirt, pants = a.pants || '#20242e', hair = a.hair
     if (TH === 'terraria') skin = SKINS[hsh(a.u + 'sk') % SKINS.length]   // разные тона кожи, как в Terraria
     if (guide) { hair = '#5b3a21'; shirt = '#e6e0d0'; pants = '#2f5aa8' } // Гид: белая рубашка, синие штаны
-    // Демон классического Doom: полностью голый — ноги это чуть затемнённая шкура, не «штаны»
+    // Classic Doom demon: fully naked — the legs are slightly darkened skin, not 'pants'
     if (demon) { skin = DEMONC[a.trait] || '#a8623a'; shirt = skin; pants = shade(skin, -0.14) }
-    // Doomguy 1993: ЯРКО-зелёная броня без рукавов (руки голые), зелёные штаны-поножи
+    // Doomguy 1993: BRIGHT green sleeveless armor (bare arms), green greaves
     if (doomguy) { skin = '#d99e73'; shirt = '#3fa33f'; pants = '#2f8430' }
     const skinSh = shade(skin, -0.2)
     const hairStyle = a.hairStyle ?? 0
@@ -831,7 +831,7 @@ export function createScene(cv) {
     }
     if (!couchSit) { ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(x - 7, y - 1, 14, 3) } // тень
 
-    // Части тела: обводка-проход, затем заливка. Голова отделена короткой шеей.
+    // Body parts: an outline pass, then fill. The head is separated by a short neck.
     const swing = walk ? (Math.floor(t / 150) % 2 ? 1 : -1) : 0
     const armC = doomguy ? skin : shade(shirt, -0.24)   // у Doomguy броня без рукавов — руки голые
     const parts = [
@@ -852,33 +852,33 @@ export function createScene(cv) {
     for (const p of parts) { ctx.fillStyle = p.c; ctx.fillRect(p.x, p.y, p.w, p.h) }
 
     if (!couchSit) {
-      // ботинки (у демона — когтистые лапы)
+      // boots (claw feet for a demon)
       ctx.fillStyle = OUTLINE; ctx.fillRect(x - 6, yy - 3, 5, 3); ctx.fillRect(x + 1, yy - 3, 5, 3)
       ctx.fillStyle = demon ? shade(skin, -0.45) : '#2b2f38'; ctx.fillRect(x - 6, yy - 3, 5, 1); ctx.fillRect(x + 1, yy - 3, 5, 1)
       if (demon) { ctx.fillStyle = '#e8d9c0'; ctx.fillRect(x - 6, yy - 2, 1, 1); ctx.fillRect(x - 3, yy - 2, 1, 1); ctx.fillRect(x + 2, yy - 2, 1, 1); ctx.fillRect(x + 5, yy - 2, 1, 1) }  // когти
-      // штаны: тень между ног + боковой блик
+      // pants: a shadow between the legs + a side highlight
       ctx.fillStyle = shade(pants, -0.32); ctx.fillRect(x - 1, yy - 12, 2, 10)
       ctx.fillStyle = shade(pants, 0.2); ctx.fillRect(x - 5, yy - 12, 1, 9)
-      // ремень (у демона нет)
+      // belt (none for a demon)
       if (!demon) {
         ctx.fillStyle = '#1c2029'; ctx.fillRect(x - 6, yy - 13, 12, 2)
         ctx.fillStyle = '#b0873a'; ctx.fillRect(x - 1, yy - 13, 2, 2)
       }
     }
-    // рубашка: блик сверху, тень снизу, центральная складка
+    // shirt: highlight on top, shadow below, a central fold
     ctx.fillStyle = shade(shirt, 0.26); ctx.fillRect(x - 6, yy - 22, 12, 2)
     ctx.fillStyle = shade(shirt, -0.26); ctx.fillRect(x - 6, yy - 13, 12, 1)
     ctx.fillStyle = shade(shirt, -0.15); ctx.fillRect(x, yy - 21, 1, 8)
-    // воротник у шеи
+    // collar at the neck
     ctx.fillStyle = shade(shirt, -0.3); ctx.fillRect(x - 3, yy - 22, 6, 1)
     if (demon) {
-      // мускулатура как у импа: грудные мышцы + пресс (тени), без одежды
+      // imp-like musculature: pecs + abs (shadows), no clothes
       ctx.fillStyle = shade(skin, 0.18); ctx.fillRect(x - 4, yy - 20, 3, 2); ctx.fillRect(x + 1, yy - 20, 3, 2)   // грудные
       ctx.fillStyle = shade(skin, -0.28)
       ctx.fillRect(x, yy - 21, 1, 8)                                                    // центральная линия
       ctx.fillRect(x - 3, yy - 17, 2, 1); ctx.fillRect(x + 1, yy - 17, 2, 1)            // пресс
       ctx.fillRect(x - 3, yy - 15, 2, 1); ctx.fillRect(x + 1, yy - 15, 2, 1)
-      // костяные шипы: плечи (по два), локти, колени — как у импа
+      // bone spikes: shoulders (two each), elbows, knees — like an imp
       ctx.fillStyle = '#ece2cc'
       ctx.fillRect(x - 9, yy - 24, 2, 3); ctx.fillRect(x - 7, yy - 23, 1, 2)
       ctx.fillRect(x + 7, yy - 24, 2, 3); ctx.fillRect(x + 6, yy - 23, 1, 2)
@@ -886,11 +886,11 @@ export function createScene(cv) {
       if (!couchSit) { ctx.fillRect(x - 5, yy - 8, 1, 2); ctx.fillRect(x + 4, yy - 8, 1, 2) }  // колени
     }
     if (doomguy) {
-      // сегменты нагрудной брони (рёбра, как на спрайте) + зелёные накладки на плечах голых рук
+      // chest armor segments (ribs, as on the sprite) + green pads on the bare arms' shoulders
       ctx.fillStyle = shade(shirt, -0.3); ctx.fillRect(x - 6, yy - 19, 12, 1); ctx.fillRect(x - 6, yy - 16, 12, 1)
       ctx.fillStyle = shade(shirt, 0.25); ctx.fillRect(x - 4, yy - 21, 8, 1)
       ctx.fillStyle = shirt; ctx.fillRect(x - 8, yy - 22, 3, 2); ctx.fillRect(x + 5, yy - 22, 3, 2)   // плечевые накладки
-      // мышцы на голых руках
+      // muscles on the bare arms
       ctx.fillStyle = shade(skin, -0.18); ctx.fillRect(x - 8, yy - 18, 3, 1); ctx.fillRect(x + 5, yy - 18, 3, 1)
       if (!couchSit) { ctx.fillStyle = shade(pants, 0.3); ctx.fillRect(x - 5, yy - 8, 3, 2); ctx.fillRect(x + 2, yy - 8, 3, 2) }  // наколенники
       if (a.u === 'op') {   // оператор держит помповый дробовик поперёк груди
@@ -900,29 +900,29 @@ export function createScene(cv) {
         ctx.fillStyle = '#8a8f98'; ctx.fillRect(x - 9, yy - 15, 3, 1)    // блик дула
       }
     }
-    // фартук бармена у оператора (в Doom он в броне — без фартука)
+    // the operator's bartender apron (in Doom he's in armor — no apron)
     if (isOp && !doomguy) {
       ctx.fillStyle = '#e6e8ec'; ctx.fillRect(x - 4, yy - 19, 8, 8)
       ctx.fillStyle = '#c9ccd2'; ctx.fillRect(x - 4, yy - 19, 8, 1)
       ctx.fillStyle = OUTLINE; ctx.fillRect(x - 5, yy - 19, 1, 8); ctx.fillRect(x + 4, yy - 19, 1, 8)
     }
-    // кисти рук
+    // hands
     ctx.fillStyle = skin; ctx.fillRect(x - 8, yy - 14, 3, 3); ctx.fillRect(x + 5, yy - 14, 3, 3)
     ctx.fillStyle = OUTLINE; ctx.fillRect(x - 8, yy - 11, 3, 1); ctx.fillRect(x + 5, yy - 11, 3, 1)
-    // телефон в руке (когда «листает мемы»): корпус + светящийся экран
+    // a phone in hand (when 'scrolling memes'): body + a glowing screen
     if (a.phoneUntil && Date.now() < a.phoneUntil) {
       ctx.fillStyle = OUTLINE; ctx.fillRect(x + 4, yy - 17, 5, 7)
       ctx.fillStyle = ['#58a6ff', '#3fb950', '#e85aad'][Math.floor(t / 400) % 3]; ctx.fillRect(x + 5, yy - 16, 3, 5)
     }
     if (doomguy) {
-      // шлем Doomguy 1993: ярко-зелёный, широкий тёмно-серый визор, светлый кант
+      // Doomguy 1993 helmet: bright green, a wide dark-gray visor, a light rim
       ctx.fillStyle = shade('#3fa33f', 0.3); ctx.fillRect(x - 5, yy - 33, 10, 1)    // блик купола
       ctx.fillStyle = '#2a2e33'; ctx.fillRect(x - 4, yy - 30, 8, 3)                 // визор
       ctx.fillStyle = '#568a9e'; ctx.fillRect(x - 3, yy - 29, 2, 1)                 // отблеск стекла
       ctx.fillStyle = shade('#3fa33f', -0.35); ctx.fillRect(x - 5, yy - 27, 10, 1)  // кант под визором
       ctx.fillStyle = shade('#3fa33f', -0.2); ctx.fillRect(x - 1, yy - 26, 2, 2)    // «подбородок» шлема
     } else if (demon) {
-      // морда как у импа: надбровный гребень, СПЛОШНЫЕ красные горящие глаза, клыки
+      // an imp-like face: a brow ridge, SOLID red glowing eyes, fangs
       ctx.fillStyle = skinSh; ctx.fillRect(x + 3, yy - 33, 2, 9)
       ctx.fillStyle = shade(skin, -0.35); ctx.fillRect(x - 5, yy - 30, 10, 1)       // надбровный гребень
       ctx.fillStyle = '#c81800'; ctx.fillRect(x - 4, yy - 29, 3, 2); ctx.fillRect(x + 1, yy - 29, 3, 2)
@@ -930,23 +930,23 @@ export function createScene(cv) {
       ctx.fillStyle = shade(skin, -0.45); ctx.fillRect(x - 2, yy - 26, 5, 2)        // широкая пасть
       ctx.fillStyle = '#f0f0e8'                                                     // клыки вниз и вверх
       ctx.fillRect(x - 2, yy - 25, 1, 2); ctx.fillRect(x + 2, yy - 25, 1, 2); ctx.fillRect(x, yy - 26, 1, 1)
-      // короткие костяные рожки-наросты на макушке (имп)
+      // short bony horn-growths on the crown (imp)
       ctx.fillStyle = OUTLINE; ctx.fillRect(x - 6, yy - 36, 3, 4); ctx.fillRect(x + 3, yy - 36, 3, 4)
       ctx.fillStyle = '#ece2cc'; ctx.fillRect(x - 5, yy - 35, 1, 3); ctx.fillRect(x + 4, yy - 35, 1, 3)
       ctx.fillRect(x - 1, yy - 35, 2, 1)                                            // нарост по центру лба
     } else {
-      // лицо: тень щеки, крупные глаза, брови, рот
+      // face: cheek shadow, big eyes, brows, mouth
       ctx.fillStyle = skinSh; ctx.fillRect(x + 3, yy - 33, 2, 9)
       ctx.fillStyle = '#f6f6f6'; ctx.fillRect(x - 4, yy - 28, 3, 3); ctx.fillRect(x + 1, yy - 28, 3, 3)
       ctx.fillStyle = '#2a5a8c'; ctx.fillRect(x - 3, yy - 27, 2, 2); ctx.fillRect(x + 2, yy - 27, 2, 2)
       ctx.fillStyle = '#0f2c46'; ctx.fillRect(x - 3, yy - 27, 1, 1); ctx.fillRect(x + 2, yy - 27, 1, 1)
       ctx.fillStyle = shade(hair, -0.2); ctx.fillRect(x - 4, yy - 29, 3, 1); ctx.fillRect(x + 1, yy - 29, 3, 1) // брови
       ctx.fillStyle = skinSh; ctx.fillRect(x - 1, yy - 25, 3, 1)  // рот
-      // волосы
+      // hair
       drawHair(x, yy, hair, guide ? 3 : hairStyle)
     }
 
-    // наушники у задротов/стримеров — на макушке (демонам и Doomguy не нужны)
+    // headphones on grinders/streamers — on the crown (demons and Doomguy don't need them)
     if (!demon && !doomguy && (a.trait === 'задрот' || a.trait === 'стример')) {
       ctx.fillStyle = OUTLINE
       ctx.fillRect(x - 7, yy - 31, 2, 6); ctx.fillRect(x + 5, yy - 31, 2, 6); ctx.fillRect(x - 6, yy - 37, 12, 2)
@@ -954,7 +954,7 @@ export function createScene(cv) {
       if (a.trait === 'стример') { ctx.fillStyle = '#f85149'; ctx.fillRect(x + 5, yy - 26, 3, 2) } // микрофон
     }
 
-    // сигарета у курящего: белая палочка у рта, тлеющий огонёк мигает
+    // a cigarette on a smoker: a white stick at the mouth, a blinking ember
     if (a.st === 'smoking') {
       ctx.fillStyle = OUTLINE; ctx.fillRect(x + 3, yy - 27, 8, 3)
       ctx.fillStyle = '#e8e8e4'; ctx.fillRect(x + 4, yy - 26, 5, 1)
@@ -962,14 +962,14 @@ export function createScene(cv) {
       ctx.fillRect(x + 9, yy - 26, 2, 1)
     }
 
-    // «утоплен» в диване: подушка сиденья поверх бёдер
+    // 'sunk' into the couch: the seat cushion over the thighs
     if (couchSit) {
       ctx.fillStyle = OUTLINE; ctx.fillRect(x - 9, yy - 13, 18, 9)
       ctx.fillStyle = '#5a2e35'; ctx.fillRect(x - 8, yy - 12, 16, 7)
       ctx.fillStyle = '#6d3941'; ctx.fillRect(x - 8, yy - 12, 16, 2)
     }
 
-    // имя с тёмной обводкой (читаемо на любом фоне)
+    // name with a dark outline (readable on any background)
     ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center'
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.lineJoin = 'round'
     ctx.strokeText(a.name, x, y + 12)
@@ -999,7 +999,7 @@ export function createScene(cv) {
     return true
   }
 
-  // ── Камера: вписать в экран, пан тягой, зум колесом ─────────────────────────
+  // ── Camera: fit to screen, pan by drag, zoom by wheel ───────────────────────
   const dpr = window.devicePixelRatio || 1
   let cam = { z: 1, x: 0, y: 0 }
   function resize() {
@@ -1044,17 +1044,17 @@ export function createScene(cv) {
     ctx.setTransform(dpr * cam.z, 0, 0, dpr * cam.z, dpr * cam.x, dpr * cam.y)
     if (!built) { ctx.fillStyle = '#8b949e'; ctx.font = '13px system-ui'; ctx.fillText('Ждём данные симулятора…', 420, 290); requestAnimationFrame(frame); return }
 
-    // хосты, чьи игроки отошли (курилка/туалет) — показываем на них AFK
+    // hosts whose players stepped away (smoking area/WC) — we show AFK on them
     afkHostNames = new Set()
     for (const [, a] of actors) if (AWAY_STATES.has(a.st) && a.hostName) afkHostNames.add(a.hostName)
 
     drawFloor(t)
     for (const d of desks) drawDesk(d, t)
 
-    // клубный кот бродит по залу
+    // the club cat wanders the hall
     updateCat(t, dt); drawCat(t)
 
-    // оператор
+    // operator
     drawPerson({ x: OP.x, y: OP.y, name: 'оператор', shirt: '#c74848', hair: '#2b2019', st: 'atbar', u: 'op' }, t)
 
     const now0 = Date.now()
@@ -1090,13 +1090,13 @@ export function createScene(cv) {
     }
     for (const u of toDelete) { actors.delete(u); freeSlots(u, null) }
 
-    // ── Курьер-официант: несёт готовый заказ клиенту (к хосту или на стойку) ──
+    // ── Waiter-courier: carries the finished order to the client (to the host or the counter) ──
     if (!courier && deliveries.length) {
       const oid = deliveries.shift()
       const u = orderOwners.get(oid)
       const a = u ? actors.get(u) : null
       const item = FOODC[oid % FOODC.length]
-      // «клиент решает»: ~60% — принести к месту, иначе сам заберёт на стойке
+      // 'the client decides': ~60% — bring it to the seat, otherwise they pick it up at the counter
       if (a && a.st === 'sit' && (oid % 10) < 6) {
         courier = { x: PASS.x, y: PASS.y, phase: 'go', target: { x: a.x + 14, y: a.y }, backTo: PASS, item, u, oid }
       } else {
@@ -1120,7 +1120,7 @@ export function createScene(cv) {
       } else if (c.phase === 'give' && now0 > c.until) c.phase = 'back'
       if (courier) {
         drawPerson({ x: c.x, y: c.y, name: '', shirt: '#c74848', hair: '#2b2019', st: c.phase === 'give' ? 'atbar' : 'walkin', u: 'courier' }, t)
-        // поднос с заказом в руках
+        // a tray with the order in hand
         const px = Math.round(c.x), py = Math.round(c.y)
         ctx.fillStyle = OUTLINE; ctx.fillRect(px - 6, py - 18, 12, 4)
         ctx.fillStyle = '#d5d9de'; ctx.fillRect(px - 5, py - 17, 10, 2)
@@ -1128,13 +1128,13 @@ export function createScene(cv) {
         ctx.fillStyle = c.item; ctx.fillRect(px - 2, py - 22, 4, 4)
       }
     }
-    // облачка — поверх всех
+    // bubbles — on top of everything
     const now = Date.now()
     for (const [, a] of actors) {
       if (a.bubble && !drawBubble(a.x, a.y - 20, a.bubble.text, a.bubble.until, now)) a.bubble = null
     }
     if (opBubble && !drawBubble(OP.x, OP.y - 20, opBubble.text, opBubble.until, now)) opBubble = null
-    // баннеры — в экранных координатах, не зависят от камеры
+    // banners — in screen coordinates, independent of the camera
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     banners = banners.filter(b => b.until > now)
     banners.slice(0, 2).forEach((b, i) => {

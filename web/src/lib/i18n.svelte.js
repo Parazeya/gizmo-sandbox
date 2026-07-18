@@ -1,6 +1,6 @@
-// Мини-i18n: русская строка — ключ, en-словарь — перевод. t() реактивна
-// через $state, переключение мгновенное. Ленту симуляции не переводим —
-// это серверные события ботов (колорит клуба), см. README.
+// Mini-i18n: a Russian string is the key, the en dictionary is the translation.
+// t() is reactive via $state, switching is instant. We don't translate the
+// simulation feed — it's the bots' server-side events (club flavor), see README.
 export const i18n = $state({ lang: 'ru' })
 
 export function setLang(l) { i18n.lang = l === 'en' ? 'en' : 'ru' }

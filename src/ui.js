@@ -1,8 +1,8 @@
-// Веб-интерфейс симулятора: одна страница (тёмная), без зависимостей.
-// GET  /            — дашборд (хосты, игроки, заказы, лента событий)
-// GET  /api/state   — снапшот мира (JSON), страница опрашивает раз в 2с
-// GET  /api/config  — текущий конфиг; POST — применить живьём + сохранить в sim.config.json
-// GET  /events      — SSE-лента событий (те же строки, что в консоли)
+// The simulator web server. The primary UI is the built Svelte app (web/dist);
+// this file serves it and exposes the JSON/SSE API:
+// GET  /api/state   — world snapshot (JSON)
+// GET  /api/config  — current config; POST — apply live + save to sim.config.json
+// GET  /events      — SSE event stream (the same lines as in the console)
 import http from 'node:http'
 import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -14,8 +14,8 @@ import { gapi, data, reconnectGizmo } from './gizmo.js'
 import { sqlPing, sqlEnabled, sqlReconnect } from './sql.js'
 import { loadOpenApiSpec } from './apicatalog.js'
 
-// Собранный Svelte-фронт (web/dist). Если не собран (`npm run build` в web/) —
-// отдаются старые встроенные страницы (PAGE/PAGE_CLUB) как фолбэк.
+// The built Svelte frontend (web/dist). If it isn't built (`npm run build` in
+// web/) — the legacy embedded pages (PAGE/PAGE_CLUB) are served as a fallback.
 const DIST = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web', 'dist')
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -27,7 +27,7 @@ function serveDist(pathname, res) {
   let rel = pathname === '/' ? 'index.html' : pathname.slice(1)
   let file = path.join(DIST, rel)
   if (!file.startsWith(DIST)) return false
-  if (!existsSync(file)) file = path.join(DIST, 'index.html') // SPA-фолбэк
+  if (!existsSync(file)) file = path.join(DIST, 'index.html') // SPA fallback
   try {
     const body = readFileSync(file)
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream' })
@@ -39,12 +39,12 @@ function serveDist(pathname, res) {
 const clients = new Set()
 
 export function broadcast(line) {
-  // Обратная совместимость: безымянное событие ленты (старые страницы-фолбэк)
+  // Backward compatibility: an unnamed feed event (legacy fallback pages)
   const payload = `data: ${JSON.stringify(line)}\n\n`
   for (const res of clients) res.write(payload)
 }
 
-/** Типизированное SSE-событие: state / metric / feed — push вместо поллинга. */
+/** Typed SSE event: state / metric / feed — push instead of polling. */
 export function broadcastEvent(type, data) {
   const payload = `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`
   for (const res of clients) res.write(payload)
@@ -63,22 +63,22 @@ export function startUI({ port, getState, getFeed, getHistory, onConfig, onActio
       res.end(JSON.stringify(getHistory?.() ?? []))
       return
     }
-    // ♻ Снести тестовый мир и сгенерировать новый (боты, персоны, комнаты)
+    // ♻ Tear down the test world and generate a new one (bots, personas, rooms)
     if (url.pathname === '/api/world/reset' && req.method === 'POST') {
       Promise.resolve(onWorldReset?.())
         .then((r) => { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(r ?? { ok: false })) })
         .catch((err) => { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: err.message })) })
       return
     }
-    // Мастер первого запуска: проверка связи с Gizmo и SQL
+    // Setup wizard: connectivity check for Gizmo and SQL
     if (url.pathname === '/api/setup/check') {
       ;(async () => {
         const out = { gizmo: null, sql: null }
         try {
           const hosts = data(await gapi.v3.hosts.getHosts({ paginationLimit: 1 }))
-          // версия сервера — из OpenAPI-документа (не критично, если недоступен)
+          // server version — from the OpenAPI document (not critical if unavailable)
           let ver = null
-          try { ver = (await loadOpenApiSpec())?.info?.version ?? null } catch { /* старые сборки без /openapi */ }
+          try { ver = (await loadOpenApiSpec())?.info?.version ?? null } catch { /* old builds without /openapi */ }
           ver = ver ? String(ver).replace(/^v/i, '') : null
           const verNote = ver
             ? `Gizmo v${ver}${ver.startsWith('3') ? '' : ' — проверялось на v3.x, возможны расхождения'}`
@@ -111,21 +111,21 @@ export function startUI({ port, getState, getFeed, getHistory, onConfig, onActio
       req.on('data', (c) => { body += c })
       req.on('end', () => {
         let opts = {}
-        try { opts = body ? JSON.parse(body) : {} } catch { /* пустое тело — ок */ }
+        try { opts = body ? JSON.parse(body) : {} } catch { /* empty body — ok */ }
         runFullScan(opts)
           .then((r) => { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(r)) })
           .catch((err) => { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })) })
       })
       return
     }
-    // Скан мутаций: create→update→delete только над своими сущностями
+    // Mutation scan: create→update→delete only on our own entities
     if (url.pathname === '/api/tests/mutations/run' && req.method === 'POST') {
       runMutationScan()
         .then((r) => { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(r)) })
         .catch((err) => { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })) })
       return
     }
-    // Чистка отчётов: удалить один файл или все отчёты сканов разом
+    // Report cleanup: delete one file or all scan reports at once
     if (url.pathname === '/api/tests/reports/delete' && req.method === 'POST') {
       let body = ''
       req.on('data', (c) => { body += c })
@@ -145,7 +145,7 @@ export function startUI({ port, getState, getFeed, getHistory, onConfig, onActio
       } catch (err) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message })) }
       return
     }
-    // Сохранённые API-доки версий + ручное сравнение двух доков
+    // Saved version API docs + manual comparison of two docs
     if (url.pathname === '/api/tests/specs' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
       res.end(JSON.stringify(listSpecs()))
@@ -170,7 +170,7 @@ export function startUI({ port, getState, getFeed, getHistory, onConfig, onActio
       })
       return
     }
-    // Хосты для выбора в скане; ?probe=1 — проверить подключённость Gizmo-клиентов
+    // Hosts for the scan selector; ?probe=1 — check Gizmo client connectivity
     if (url.pathname === '/api/tests/hosts') {
       listScanHosts(url.searchParams.get('probe') === '1')
         .then((r) => { res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(r)) })
@@ -220,7 +220,7 @@ export function startUI({ port, getState, getFeed, getHistory, onConfig, onActio
           try {
             const patch = JSON.parse(body)
             updateConfig(patch)
-            // Сменили доступы — пересоздаём клиентов сразу, без перезапуска
+            // Credentials changed — recreate the clients immediately, no restart
             if (patch.gizmo) reconnectGizmo()
             if (patch.sql) sqlReconnect().catch(() => {})
             onConfig?.()
@@ -245,22 +245,22 @@ export function startUI({ port, getState, getFeed, getHistory, onConfig, onActio
         Connection: 'keep-alive',
         'Access-Control-Allow-Origin': '*',
       })
-      // Полный снапшот при подключении — дальше только инкрементальные пуши
-      // (state целиком, metric — одна точка истории, feed — строка ленты).
+      // Full snapshot on connect — afterwards only incremental pushes
+      // (state in full, metric — one history point, feed — a feed line).
       res.write(`event: init\ndata: ${JSON.stringify({
         state: getState(),
         history: getHistory?.() ?? [],
         feed: getFeed(),
       })}\n\n`)
-      // Старым встроенным страницам — история ленты безымянными событиями
+      // For the legacy embedded pages — feed history as unnamed events
       for (const line of getFeed()) res.write(`data: ${JSON.stringify(line)}\n\n`)
       clients.add(res)
       req.on('close', () => clients.delete(res))
       return
     }
-    // Svelte-фронт (web/dist), если собран
+    // Svelte frontend (web/dist), if built
     if (serveDist(url.pathname, res)) return
-    // Фолбэк: старые встроенные страницы
+    // Fallback: legacy embedded pages
     if (url.pathname === '/club') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
       res.end(PAGE_CLUB.replace('</body>', REPORTS_WIDGET + '</body>'))
@@ -513,7 +513,7 @@ new EventSource('/events').onmessage = (e) => {
 }
 </script></body></html>`
 
-// ── /club — пиксельный вид сверху: зал, боты ходят/играют, облачка событий ───
+// ── /club — pixel top-down view: hall, bots walk/play, event bubbles ────────
 const PAGE_CLUB = /* html */ `<!doctype html>
 <html lang="ru"><head>
 <meta charset="utf-8">

@@ -1,9 +1,9 @@
-// Конфигурация симулятора. Источники по приоритету (выше — сильнее):
-//   1) аргументы CLI (--players 8 --tick 5 --speed 6 --ui 5555)
-//   2) переменные окружения (GIZMO_*, SQL_*, SIM_*)
-//   3) sim.config.json в корне проекта (создаётся при первом запуске — заполняйте его)
-//   4) дефолты тестового стенда ниже
-// Веб-интерфейс правит конфиг живьём и сохраняет обратно в sim.config.json.
+// Simulator configuration. Sources by priority (higher wins):
+//   1) CLI arguments (--players 8 --tick 5 --speed 6 --ui 5555)
+//   2) environment variables (GIZMO_*, SQL_*, SIM_*)
+//   3) sim.config.json in the project root (created on first run — fill it in)
+//   4) the test-stand defaults below
+// The web UI edits the config live and writes it back to sim.config.json.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -16,8 +16,8 @@ function arg(name, fallback) {
 }
 
 const DEFAULTS = {
-  // Подключение к ТЕСТОВОМУ серверу Gizmo — заполняется в мастере первого
-  // запуска (или в sim.config.json / переменных окружения GIZMO_*).
+  // Connection to the TEST Gizmo server — filled in via the setup wizard
+  // (or sim.config.json / GIZMO_* environment variables).
   gizmo: {
     ip: '127.0.0.1',
     port: 80,
@@ -27,8 +27,8 @@ const DEFAULTS = {
   },
   branchId: 1,
 
-  // SQL нужен ТОЛЬКО для симуляции запусков приложений (AppStat пишет клиент
-  // Gizmo, API для записи нет). Пустой пароль — событие просто выключено.
+  // SQL is needed ONLY to simulate application launches (AppStat is written by
+  // the Gizmo client, there is no API for it). Empty password — event disabled.
   sql: {
     host: '127.0.0.1',
     port: 1433,
@@ -37,73 +37,73 @@ const DEFAULTS = {
     password: null,
   },
 
-  // Сколько виртуальных игроков и как часто тикает симуляция.
+  // How many virtual players and how often the simulation ticks.
   players: 8,
-  // Потолок «базы» игроков: событие «регистрация нового» растит её до этого числа.
+  // Player-base cap: the "new registration" event grows it up to this number.
   maxPlayers: 40,
-  // Целевая занятость: не сажаем новых, если сидит столько. Держите ниже
-  // лимита одновременных сессий лицензии Gizmo (на стенде ~35), иначе логины
-  // упираются в 65536 и в клубе нет ротации.
+  // Target occupancy: don't seat new players once this many are seated. Keep it
+  // below the Gizmo license concurrent-session limit (~35 on the stand), or
+  // logins hit code 65536 and the club has no rotation.
   maxSeated: 32,
   tickSeconds: 10,
-  // Ускорение времени (2 = «час клуба» проходит за 30 минут реального
-  // времени). Влияет на длительность сессий и кулдауны привычек.
+  // Time acceleration (2 = one "club hour" passes in 30 real minutes). Affects
+  // session lengths and habit cooldowns.
   speed: 1,
-  // Порт веб-интерфейса (дашборд мира); 0 — выключить.
+  // Web UI port (world dashboard); 0 disables it.
   uiPort: 5555,
 
-  // Префикс логинов ботов (создаются сами при первом запуске).
+  // Bot login prefix (bots are created automatically on first run).
   botPrefix: 'sim_bot_',
   botPassword: 'sim12345',
 
-  // Первый запуск: пока false — UI показывает мастер настройки.
+  // First run: while false the UI shows the setup wizard.
   setupDone: false,
-  // Режим по умолчанию после мастера: 'sim' (симулятор) или 'api' (тесты API).
+  // Default mode after the wizard: 'sim' (simulator) or 'api' (API tests).
   uiMode: 'sim',
-  // Тема интерфейса: 'plain' | 'terraria' | 'doom'.
+  // UI theme: 'plain' | 'terraria' | 'doom'.
   uiTheme: 'plain',
-  // Акцентный цвет темы Doom: 'green' (ядовитый, дефолт) | 'white' | 'red' | 'blue' | 'cyan'.
+  // Doom theme accent color: 'green' (toxic, default) | 'white' | 'red' | 'blue' | 'cyan'.
   uiAccent: 'green',
-  // Язык веб-интерфейса: 'ru' | 'en' (выбирается в мастере и кнопкой в шапке).
+  // Web UI language: 'ru' | 'en' (chosen in the wizard and via the header button).
   uiLang: 'ru',
-  // Поколение мира: растёт при «снести и сгенерировать заново» — меняет
-  // персоны ботов и планировку комнат на карте.
+  // World generation: grows on "tear down and regenerate" — changes the bots'
+  // personas and the room layout on the map.
   worldGen: 1,
 
-  // ── Реализм ──────────────────────────────────────────────────────────────
+  // ── Realism ──────────────────────────────────────────────────────────────
   session: {
-    minMinutes: 30,   // игровая сессия: 30 минут…
-    maxMinutes: 240,  // …до 4 часов, планируется при посадке
-    earlyLeaveChance: 0.05, // редкий ранний уход (за тик, после 20 минут)
+    minMinutes: 30,   // play session: from 30 minutes…
+    maxMinutes: 240,  // …up to 4 hours, planned on seating
+    earlyLeaveChance: 0.05, // rare early leave (per tick, after 20 minutes)
   },
   habits: {
-    orderCooldownMin: [20, 45],    // заказ на бар — не чаще раза в 20–45 мин
-    depositCooldownMin: [40, 90],  // пополнение — редкое событие
-    assetCooldownMin: [25, 60],    // взять/вернуть ассет
+    orderCooldownMin: [20, 45],    // bar order — at most once every 20–45 min
+    depositCooldownMin: [40, 90],  // top-up — a rare event
+    assetCooldownMin: [25, 60],    // check an asset out/in
   },
   operator: {
-    orderPrepMinutes: [1, 4],      // «готовка» заказа до выдачи
-    saleCooldownMin: [10, 25],     // продажа на кассе прохожему
-    shiftHours: 8,                 // длительность смены (потом пересменка)
+    orderPrepMinutes: [1, 4],      // order "cooking" time before delivery
+    saleCooldownMin: [10, 25],     // register sale to a passer-by
+    shiftHours: 8,                 // shift length (then a shift change)
   },
 
-  // Вероятности событий на каждом тике (веса; сессии/заказы дополнительно
-  // ограничены кулдаунами выше, так что спама не будет).
+  // Per-tick event probabilities (weights; sessions/orders are additionally
+  // limited by the cooldowns above, so there is no spam).
   weights: {
-    arrive: 20,        // свободный бот садится за свободный хост
-    groupArrive: 5,    // компания (2–3) приходит вместе, садится рядом
-    tournament: 1,     // стихийный мини-турнир среди сидящих
-    order: 10,         // сидящий бот заказывает на бар (с комментарием)
-    buyTime: 5,        // докупить пакет времени
-    deposit: 6,        // пополнение на стойке
-    reserve: 2,        // бронь на вечер
-    asset: 6,          // взять/вернуть ассет
-    appSession: 8,     // «поиграл в приложение» (SQL AppStat)
-    operatorSale: 6,   // оператор продал на кассе
-    life: 12,          // «жизнь» — действия вне Gizmo, просто в консоль
-    newcomer: 2,       // регистрация нового игрока (до maxPlayers)
-    registerCash: 2,   // касса: размен/инкассация (отчёт смены Gizmo)
-    voidSale: 1,       // аннулирование ошибочного чека (отчёт Voids)
+    arrive: 20,        // a free bot takes a free host
+    groupArrive: 5,    // a group (2–3) arrives together and sits nearby
+    tournament: 1,     // a spontaneous mini-tournament among the seated players
+    order: 10,         // a seated bot orders at the bar (with a comment)
+    buyTime: 5,        // buy more time package
+    deposit: 6,        // top-up at the counter
+    reserve: 2,        // an evening reservation
+    asset: 6,          // check an asset out/in
+    appSession: 8,     // "played an application" (SQL AppStat)
+    operatorSale: 6,   // the operator sold at the register
+    life: 12,          // "life" — actions outside Gizmo, console only
+    newcomer: 2,       // a new player registration (up to maxPlayers)
+    registerCash: 2,   // register: change/collection (Gizmo shift report)
+    voidSale: 1,       // void of a mistaken invoice (Voids report)
   },
 }
 
@@ -121,16 +121,16 @@ function deepMerge(base, over) {
 
 export const config = structuredClone(DEFAULTS)
 
-// 3) файл
+// 3) file
 if (existsSync(CONFIG_PATH)) {
   try {
     deepMerge(config, JSON.parse(readFileSync(CONFIG_PATH, 'utf8')))
   } catch (err) {
-    console.error(`⚠ sim.config.json не читается (${err.message}) — работаю на дефолтах`)
+    console.error(`⚠ sim.config.json is unreadable (${err.message}) — running on defaults`)
   }
 }
 
-// 2) окружение
+// 2) environment
 const env = process.env
 if (env.GIZMO_HOST) config.gizmo.ip = env.GIZMO_HOST
 if (env.GIZMO_PORT) config.gizmo.port = Number(env.GIZMO_PORT)
@@ -154,17 +154,17 @@ config.tickSeconds = Number(arg('tick', config.tickSeconds))
 config.speed = Number(arg('speed', config.speed))
 config.uiPort = Number(arg('ui', config.uiPort))
 
-/** Сохранить текущий конфиг в sim.config.json (весь, читаемо). */
+/** Save the current config to sim.config.json (whole file, human-readable). */
 export function saveConfig() {
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + '\n')
 }
 
-/** Применить патч (вложенный объект) живьём и сохранить в файл. */
+/** Apply a patch (nested object) live and save it to the file. */
 export function updateConfig(patch) {
   deepMerge(config, patch)
   saveConfig()
   return config
 }
 
-// Файла ещё нет — создаём с текущими значениями, чтобы было что заполнять.
+// No file yet — create it with the current values so there is something to fill in.
 if (!existsSync(CONFIG_PATH)) saveConfig()

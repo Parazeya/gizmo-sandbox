@@ -1,25 +1,26 @@
-// Действия ботов и оператора. Все ошибки ловятся снаружи (одно упавшее
-// действие не валит цикл). Реализм обеспечивают кулдауны привычек и
-// плановая длительность сессии — см. config.session / config.habits.
+// Bot and operator actions. All errors are caught from the outside (one failed
+// action doesn't crash the loop). Realism comes from habit cooldowns and the
+// planned session length — see config.session / config.habits.
 import { gapi, userApi, model, data } from './gizmo.js'
 import { world, freeBots, seatedBots, freeHosts, hostOccupancy, pick, isPresentToday, createBot } from './world.js'
 import { config } from './config.js'
 import { insertAppStat, sqlEnabled } from './sql.js'
 
-// Подпись бота в логе: имя персоны (+ игровой ник) + логин.
+// Bot label in the log: persona name (+ gamer tag) + login.
 const who = (bot) => {
   const nick = bot.persona?.nick ? ` «${bot.persona.nick}»` : ''
   return `${bot.persona?.name ?? ''}${nick} (${bot.username})`
 }
 
-// Ритм дня: ночью клуб пустеет, вечером — час пик. Множитель шанса прихода
-// по РЕАЛЬНОМУ часу на машине (speed ускоряет жизнь внутри дня, не сам день).
+// Daily rhythm: the club empties at night, evening is rush hour. Arrival-chance
+// multiplier by the REAL machine hour (speed accelerates life within the day,
+// not the day itself).
 function hourFactor() {
   const h = new Date().getHours()
-  if (h >= 17 || h === 0) return 1     // вечер — пик
-  if (h >= 12) return 0.8              // день
-  if (h >= 7) return 0.5               // утро
-  return 0.25                          // глубокая ночь
+  if (h >= 17 || h === 0) return 1     // evening — peak
+  if (h >= 12) return 0.8              // afternoon
+  if (h >= 7) return 0.5               // morning
+  return 0.25                          // deep night
 }
 
 const ORDER_COMMENTS = [
@@ -34,23 +35,23 @@ const ORDER_COMMENTS = [
   'Сдачу оставьте себе :)',
   'Только не как вчера, пожалуйста',
   'Разогрейте посильнее',
-  '', '', '', '', '', '', '', // чаще всего без комментария
+  '', '', '', '', '', '', '', // most often without a comment
 ]
 
 const DEPOSIT_AMOUNTS = [100, 200, 300, 500, 1000]
 
-// Минуты «клубного времени» → миллисекунды реального с учётом ускорения.
+// "Club time" minutes → real milliseconds, factoring in the acceleration.
 const mins = (m) => (m * 60_000) / config.speed
 const randBetween = ([a, b]) => a + Math.random() * (b - a)
 const cooldownOk = (ts, range) => !ts || Date.now() - ts > mins(randBetween(range))
 
-// ── Сессии ────────────────────────────────────────────────────────────────────
+// ── Sessions ────────────────────────────────────────────────────────────────
 
 const todayKey = () => new Date().toISOString().slice(0, 10)
 
-// Хосты могут быть заняты и НЕ ботами (реальные сессии на стенде) —
-// сверяемся с живыми сессиями Gizmo, а не только с локальным состоянием.
-// Считаем МЕСТА: у консоли maximumUsers, поэтому не Set, а счётчик.
+// Hosts can be occupied by NON-bots too (real sessions on the stand) — we check
+// against Gizmo's live sessions, not just local state. We count SEATS: a console
+// has maximumUsers, so it's a counter rather than a Set.
 async function actuallyFreeHosts() {
   const sessRes = await gapi.v3.userSessions.getUserSessions({ paginationLimit: -1 }).catch(() => null)
   const liveCnt = new Map()
@@ -61,24 +62,24 @@ async function actuallyFreeHosts() {
   return freeHosts().filter(h => (liveCnt.get(h.id) ?? 0) < (h.maxUsers ?? 1))
 }
 
-// AppStat.HostId имеет FK на HostComputer — консоли (endpoints) туда писать
-// НЕЛЬЗЯ (падает FK_AppStat_HostComputer_HostId). Только сидящие за ПК.
+// AppStat.HostId has an FK to HostComputer — consoles (endpoints) CANNOT be
+// written there (FK_AppStat_HostComputer_HostId fails). PC sitters only.
 const seatedAtPc = () => seatedBots().filter(b =>
   world.hosts.find(h => h.id === b.hostId)?.type !== 'endpoint')
 
-/** Посадить бота за хост (общая механика arrive/groupArrive). true = сел. */
+/** Seat a bot at a host (shared arrive/groupArrive mechanic). true = seated. */
 async function seatBot(bot, host, log) {
   let res = await gapi.v3.users.postUsersByUserIdLoginByHostId(bot.userId, host.id)
-  // 16384 = у пользователя нет игрового времени: реалистично докупаем на
-  // стойке (депозит наличными + самый дешёвый пакет) и пробуем ещё раз.
+  // 16384 = the user has no play time: we realistically top up at the counter
+  // (cash deposit + cheapest package) and try again.
   if (res?.result?.loginResult === 16384) {
     await topUpTime(bot, log)
     res = await gapi.v3.users.postUsersByUserIdLoginByHostId(bot.userId, host.id)
   }
-  // 65536 = свободных СЛОТОВ ЛИЦЕНЗИИ Gizmo нет (в клубе аншлаг) либо у бота
-  // висит paused-сессия. Пробуем один logout+retry (лечит подвисшую сессию);
-  // если не помогло — мест по лицензии нет, бот мягко уходит. Деньги тут
-  // ни при чём (проверено живьём: 3000₽ на балансе — тот же 65536).
+  // 65536 = no free Gizmo LICENSE SLOTS (the club is full) or the bot has a
+  // hung paused session. We try one logout+retry (heals a stuck session); if
+  // that doesn't help, there are no license seats and the bot softly leaves.
+  // Money is irrelevant here (verified live: a 3000₽ balance still gives 65536).
   if (res?.result?.loginResult === 65536) {
     await gapi.v3.users.postUsersByUserIdLogout(bot.userId).catch(() => {})
     res = await gapi.v3.users.postUsersByUserIdLoginByHostId(bot.userId, host.id)
@@ -88,12 +89,12 @@ async function seatBot(bot, host, log) {
     return false
   }
   if (res?.result?.loginResult === 256) {
-    // Гонка: место успели занять — бот просто не сел, попробует в другой раз.
+    // Race: the seat was just taken — the bot simply didn't sit, tries later.
     log(`🤷 ${who(bot)} хотел сесть за ${host.name}, но место уже заняли`)
     return false
   }
   if (res?.result?.loginResult !== 0) throw new Error(`loginResult=${res?.result?.loginResult}`)
-  // Длительность — из характера персоны (задрот сидит дольше залётного).
+  // Duration comes from the persona's character (a grinder sits longer than a drop-in).
   const planned = randBetween(bot.persona?.session ?? [config.session.minMinutes, config.session.maxMinutes])
   bot.hostId = host.id
   bot.sessionSince = Date.now()
@@ -102,16 +103,16 @@ async function seatBot(bot, host, log) {
 }
 
 export async function arrive(log) {
-  if (Math.random() > hourFactor()) return false // ночью почти никто не приходит
-  // держим занятость ниже лимита лицензии — иначе 65536 и нет ротации
+  if (Math.random() > hourFactor()) return false // at night almost nobody comes
+  // keep occupancy below the license limit — otherwise 65536 and no rotation
   if (seatedBots().length >= (config.maxSeated ?? 32)) return false
-  // Приходят только те, кто «сегодня в клубе» (см. персону и день).
+  // Only those who are "in the club today" arrive (see persona and day).
   const bot = pick(freeBots().filter(b => isPresentToday(b, todayKey())))
   if (!bot) return false
   const free = await actuallyFreeHosts()
   if (!free.length) return false
-  // Одиночка иногда подсаживается на диван к консоли — особенно туда, где
-  // уже кто-то рубится (реалистично: «о, пацаны в FIFA, я с вами»).
+  // A loner sometimes joins a console couch — especially where someone is
+  // already playing (realistic: "oh, guys are on FIFA, I'm in").
   const occ = hostOccupancy()
   const couches = free.filter(h => (h.maxUsers ?? 1) > 1)
   let host = null
@@ -126,7 +127,7 @@ export async function arrive(log) {
   return true
 }
 
-/** Компания друзей (2–3) приходит вместе и садится за соседние хосты. */
+/** A group of friends (2–3) arrives together and sits at adjacent hosts. */
 export async function groupArrive(log, force = false) {
   if (!force && Math.random() > hourFactor()) return false
   if (seatedBots().length + 2 > (config.maxSeated ?? 32)) {
@@ -141,9 +142,9 @@ export async function groupArrive(log, force = false) {
   const free = (await actuallyFreeHosts()).sort((a, b) => a.number - b.number)
   if (!free.length) return false
 
-  // Компания предпочитает консоль: важно считать СВОБОДНЫЕ МЕСТА (ёмкость
-  // минус сидящие), а не просто maxUsers — иначе на полузанятый диван
-  // компания никогда не подсаживалась.
+  // A group prefers a console: it matters to count FREE SEATS (capacity minus
+  // sitters), not just maxUsers — otherwise a group would never join a
+  // half-occupied couch.
   const occ = hostOccupancy()
   const console_ = free.find(h =>
     (h.maxUsers ?? 1) > 1 && (h.maxUsers - (occ.get(h.id) ?? 0)) >= size)
@@ -151,7 +152,7 @@ export async function groupArrive(log, force = false) {
   if (console_ && Math.random() < 0.65) {
     hosts = Array(size).fill(console_)
   } else {
-    // Иначе — окно из соседних (по номеру) свободных ПК, либо любые.
+    // Otherwise — a window of adjacent (by number) free PCs, or any.
     const pcs = free.filter(h => (h.maxUsers ?? 1) === 1)
     if (pcs.length >= size) {
       for (let i = 0; i + size <= pcs.length; i++) {
@@ -169,7 +170,7 @@ export async function groupArrive(log, force = false) {
     const planned = await seatBot(group[i], hosts[i], log).catch(() => false)
     if (planned !== false) seated.push(group[i])
   }
-  if (seated.length < 2) return seated.length === 1 // одиночная посадка — тоже событие
+  if (seated.length < 2) return seated.length === 1 // a single seating is an event too
   const names = seated.map(b => who(b))
   const onConsole = hosts[0] === hosts[1]
   const hostNames = onConsole
@@ -179,12 +180,12 @@ export async function groupArrive(log, force = false) {
   return true
 }
 
-/** Стихийный мини-турнир: несколько сидящих рубятся в одну игру.
- *  force (кнопка в веб-интерфейсе) — без кулдауна и с внятной причиной отказа. */
+/** A spontaneous mini-tournament: several seated players compete in one game.
+ *  force (web UI button) — no cooldown and with a clear refusal reason. */
 let lastTournamentAt = null
 export async function tournament(log, force = false) {
   if (!force && !cooldownOk(lastTournamentAt, [90, 180])) return false
-  // Только за ПК: AppStat участников нельзя писать с hostId консоли (FK)
+  // PCs only: participants' AppStat can't be written with a console hostId (FK)
   const seated = seatedAtPc()
   const app = pick(world.apps)
   if (seated.length < 4 || !app) {
@@ -221,7 +222,7 @@ async function botLeave(bot, log, reason) {
   log(`🚪 ${who(bot)} ушёл с ${host?.name ?? '?'} (${reason}, отсидел ~${playedMin} мин)`)
 }
 
-// ── «Жизнь»: действия вне Gizmo — просто чтобы боты выглядели живыми ─────────
+// ── "Life": actions outside Gizmo — just to make the bots feel alive ─────────
 const LIFE_SEATED = [
   'потягивается и хрустит пальцами',
   'орёт на тиммейтов в дискорде',
@@ -274,7 +275,7 @@ const LIFE_OPERATOR = [
 ]
 
 export async function lifeEvent(log) {
-  // Иногда «живёт» не игрок, а оператор за стойкой.
+  // Sometimes it's the operator behind the counter who "lives", not a player.
   if (Math.random() < 0.2) {
     log(pick(LIFE_OPERATOR))
     return true
@@ -282,7 +283,7 @@ export async function lifeEvent(log) {
   const dateKey = todayKey()
   const seated = seatedBots()
   const away = world.bots.filter(b => !b.hostId && !isPresentToday(b, dateKey))
-  // Болтливость персоны влияет, попадёт ли её «жизнь» в лог.
+  // The persona's chattiness affects whether its "life" makes it into the log.
   const candidates = [...seated, ...away].filter(b => Math.random() < (b.persona?.chatty ?? 0.3))
   const bot = pick(candidates)
   if (!bot) return false
@@ -291,7 +292,7 @@ export async function lifeEvent(log) {
   return true
 }
 
-/** Регистрация нового игрока: клуб живёт, база растёт (до maxPlayers). */
+/** New player registration: the club is alive, the base grows (up to maxPlayers). */
 export async function newcomer(log, force = false) {
   if (world.bots.length >= (config.maxPlayers ?? 40)) {
     if (force) log(`🤷 новых игроков не будет: база ${world.bots.length}/${config.maxPlayers ?? 40} — подними «Максимум игроков» в ⚙ Настройках`)
@@ -304,7 +305,7 @@ export async function newcomer(log, force = false) {
   return true
 }
 
-/** Смена дня: кто «ушёл со сцены» — уходит из клуба, лог посещаемости. */
+/** Day change: whoever is "off today" leaves the club, attendance is logged. */
 let lastDateKey = todayKey()
 export async function sweepDay(log) {
   const dateKey = todayKey()
@@ -317,7 +318,7 @@ export async function sweepDay(log) {
   }
 }
 
-/** Каждый тик: боты с истёкшим планом уходят; изредка кто-то уходит раньше. */
+/** Every tick: bots whose plan expired leave; occasionally someone leaves early. */
 export async function sweepSessions(log) {
   for (const bot of seatedBots()) {
     if (Date.now() >= bot.plannedUntil) {
@@ -331,10 +332,10 @@ export async function sweepSessions(log) {
   }
 }
 
-// ── Деньги и покупки ──────────────────────────────────────────────────────────
+// ── Money and purchases ─────────────────────────────────────────────────────
 
-// Как платит клиент на стойке: примерно поровну наличные и карта.
-// (-1 Cash, -2 Credit Card — стандартные методы Gizmo, проверено на стенде)
+// How a client pays at the counter: roughly evenly cash and card.
+// (-1 Cash, -2 Credit Card — standard Gizmo methods, verified on the stand)
 const pickPay = () => (Math.random() < 0.5 ? { id: -1, label: 'наличные' } : { id: -2, label: 'карта' })
 
 async function cashDeposit(userId, amount, payId = -1) {
@@ -352,7 +353,7 @@ async function cashDeposit(userId, amount, payId = -1) {
 }
 
 export async function deposit(log) {
-  // Пополняют только те, кто сегодня в клубе; транжиры кладут крупнее.
+  // Only those in the club today top up; big spenders put in more.
   const bot = pick(world.bots.filter(b =>
     isPresentToday(b, todayKey()) && cooldownOk(b.lastDepositAt, config.habits.depositCooldownMin)))
   if (!bot) return false
@@ -379,7 +380,7 @@ export async function orderBar(log) {
     if (Number(state?.total ?? 0) > 0) {
       await uapi.v3.carts.postUserCartsByIdPaymentmethod(cartId, { paymentMethodId: -3 })
     }
-    // Болтливые чаще пишут комментарий к заказу, молчуны — почти никогда.
+    // Chatty ones comment on the order more often, silent ones almost never.
     const note = Math.random() < (bot.persona?.chatty ?? 0.3)
       ? pick(ORDER_COMMENTS.filter(Boolean))
       : ''
@@ -414,7 +415,7 @@ export async function buyTime(log) {
   return true
 }
 
-// Депозит + самый дешёвый пакет времени — «оплата на стойке перед игрой».
+// Deposit + the cheapest time package — "paying at the counter before playing".
 async function topUpTime(bot, log) {
   const product = world.timeProducts
     .filter(p => Number(p.price) > 0)
@@ -430,7 +431,7 @@ async function topUpTime(bot, log) {
   log(`💳 ${who(bot)} оплатил на стойке «${product.name}» (депозит ${amount}, ${pm.label})`)
 }
 
-// ── Брони, ассеты, приложения ─────────────────────────────────────────────────
+// ── Reservations, assets, applications ──────────────────────────────────────
 
 export async function reserve(log) {
   const bot = pick(world.bots)
@@ -450,7 +451,7 @@ export async function reserve(log) {
       note: pick(['Днюха, приготовьте место', 'Приду с другом', '', '']),
     })
   } catch (err) {
-    // Слот уже занят другой бронью — обычное дело, бот не расстроился.
+    // The slot is already taken by another reservation — normal, the bot isn't upset.
     if (/HostReservationException/.test(err?.response?.data?.message ?? err.message ?? '')) {
       log(`🤷 ${who(bot)} хотел забронировать ${host.name}, но слот занят`)
       return false
@@ -480,7 +481,7 @@ export async function assetFlow(log) {
   try {
     res = await gapi.v3.users.putUsersByUserIdAssetsByAssetIdCheckout(bot.userId, asset.id)
   } catch (err) {
-    // Ассет уже на руках (например, выдан оператором вне симуляции).
+    // The asset is already checked out (e.g. handed out by an operator outside the sim).
     if (/AssetException/.test(err?.response?.data?.message ?? err.message ?? '')) {
       log(`🤷 ${who(bot)} хотел взять «${asset.typeName}» №${asset.number}, но его уже разобрали`)
       return false
@@ -512,11 +513,11 @@ export async function appSession(log) {
   return true
 }
 
-// ── Оператор ──────────────────────────────────────────────────────────────────
+// ── Operator ────────────────────────────────────────────────────────────────
 
 let lastOperatorSaleAt = null
 
-/** Продажа на кассе: подошедший к стойке игрок покупает за наличные. */
+/** Register sale: a player who walked up to the counter buys for cash. */
 export async function operatorSale(log) {
   if (!cooldownOk(lastOperatorSaleAt, config.operator.saleCooldownMin)) return false
   const bot = pick(world.bots.filter(b => isPresentToday(b, todayKey())))
@@ -541,7 +542,7 @@ export async function operatorSale(log) {
   return true
 }
 
-// ── Кассовая дисциплина: видно в отчёте смены Gizmo (Pay In/Pay Out) ────────
+// ── Register discipline: visible in the Gizmo shift report (Pay In/Pay Out) ──
 let lastRegisterCashAt = null
 export async function registerCash(log, force = false) {
   if (!force && !cooldownOk(lastRegisterCashAt, [120, 300])) return false
@@ -558,7 +559,7 @@ export async function registerCash(log, force = false) {
   return true
 }
 
-// Оператор ошибся в чеке — аннулирует последний invoice (отчёт Voids в Gizmo)
+// The operator made a mistake on a receipt — voids the last invoice (Gizmo Voids report)
 let lastVoidAt = null
 export async function voidSale(log, force = false) {
   if (!force && !cooldownOk(lastVoidAt, [180, 360])) return false
@@ -571,21 +572,21 @@ export async function voidSale(log, force = false) {
 }
 
 /**
- * Каждый тик: оператор разгребает очередь заказов — берёт в работу и после
- * «времени готовки» оплачивает и выдаёт. Оплата: предпочтительный метод
- * клиента; если с депозита не вышло (DepositException — на балансе пусто),
- * клиент «платит наличными на стойке». Заказ, который не оплатился и так,
- * после трёх попыток отменяется — как сделал бы живой оператор.
+ * Every tick: the operator works the order queue — accepts an order and, after
+ * the "cooking time", pays and delivers it. Payment: the client's preferred
+ * method; if the deposit didn't work (DepositException — empty balance), the
+ * client "pays cash at the counter". An order that still can't be paid is
+ * cancelled after three attempts — as a live operator would do.
  */
-const orderPayFails = new Map() // orderId → число неудачных попыток завершить
-const orderAccepted = new Set() // заказы, уже принятые в работу (чтобы «взял» логировать один раз)
+const orderPayFails = new Map() // orderId → number of failed completion attempts
+const orderAccepted = new Set() // orders already accepted for work (so "accepted" is logged once)
 
-// Жизненный цикл заказа Gizmo (проверено на v3.0.81): статус детали
-//   4 = новый/ожидает → (process=принять) → (оплата остатка) → 3 = оплачен
-//   → (delivered) → (complete) → 1 = завершён и УХОДИТ из активных.
-// Список /active даёт свой сводный статус (0=новый,1=готовится) — годится ТОЛЬКО
-// для отображения очереди, но НЕ для управления: завершаем по явным шагам.
-// Пустой заказ (total 0 — например фейковый тест-товар) завершить нельзя → отмена.
+// Gizmo order lifecycle (verified on v3.0.81): the detail status is
+//   4 = new/pending → (process=accept) → (pay the balance) → 3 = paid
+//   → (delivered) → (complete) → 1 = completed and LEAVES the active list.
+// The /active list gives its own summary status (0=new,1=cooking) — usable ONLY
+// for displaying the queue, NOT for control: we finish via explicit steps.
+// An empty order (total 0 — e.g. a fake test product) can't be completed → cancel.
 export async function sweepOrders(log) {
   const res = await gapi.v3.productOrders.getProductOrdersActive({ paginationLimit: -1 }).catch(() => null)
   const orders = data(res)
@@ -600,19 +601,19 @@ export async function sweepOrders(log) {
     const oid = o.orderId
     const age = Date.now() - new Date(o.createdTime).getTime()
     try {
-      // Принять в работу один раз, как только увидели заказ («готовим»).
+      // Accept for work once, as soon as we see the order ("cooking").
       if (!orderAccepted.has(oid)) {
         await gapi.v3.productOrders.putProductOrdersByIdProcess(oid).catch(() => {})
         orderAccepted.add(oid)
         log(`👨‍🍳 оператор взял заказ #${oid} в работу`)
       }
-      if (age < prepMs) continue // ещё готовится — ждём
+      if (age < prepMs) continue // still cooking — wait
 
       const full = model(await gapi.v3.productOrders.getProductOrdersById(oid))
       const total = Number(full?.total ?? 0)
       const outstanding = Number(full?.outstanding ?? 0)
 
-      // Пустой заказ (нет позиций/нулевая сумма) завершить невозможно — отменяем.
+      // An empty order (no items / zero total) can't be completed — cancel it.
       if (total <= 0) {
         await gapi.v3.productOrders.putProductOrdersByIdCancel(oid).catch(() => {})
         orderPayFails.delete(oid); orderAccepted.delete(oid)
@@ -620,7 +621,7 @@ export async function sweepOrders(log) {
         continue
       }
 
-      // Оплата остатка: сперва с депозита игрока, при пустом депозите — нал/карта.
+      // Pay the balance: first from the player's deposit, if empty — cash/card.
       if (outstanding > 0) {
         const preferred = full?.preferredPaymentMethodId ?? -3
         try {
@@ -640,8 +641,8 @@ export async function sweepOrders(log) {
         }
       }
 
-      // Выдать позиции и завершить. «Выдал» логируем и выручку считаем ТОЛЬКО
-      // если complete реально прошёл (иначе заказ остался бы висеть в очереди).
+      // Deliver the items and complete. We log "delivered" and count revenue ONLY
+      // if complete actually succeeded (otherwise the order would stay in the queue).
       await gapi.v3.productOrders.putProductOrdersByIdDelivered(oid).catch(() => {})
       await gapi.v3.productOrders.putProductOrdersByIdComplete(oid)
       orderPayFails.delete(oid); orderAccepted.delete(oid)
@@ -662,12 +663,12 @@ export async function sweepOrders(log) {
 }
 
 /**
- * Смены: без открытой смены Gizmo блокирует ВСЕ кассовые операции
- * (ShiftException). Открытие — только через v2-эндпоинт
- * POST /api/v2.0/operators/current/shift/start (работает на том же порту),
- * закрытие — v3 putShiftsByIdEnd. Пересменка отсчитывается от момента,
- * когда симулятор увидел/открыл смену (реальный startTime на стенде может
- * быть многодневной давности — сразу закрывать её при старте нельзя).
+ * Shifts: without an open shift Gizmo blocks ALL register operations
+ * (ShiftException). Opening is only via the v2 endpoint
+ * POST /api/v2.0/operators/current/shift/start (works on the same port),
+ * closing is v3 putShiftsByIdEnd. The shift change is counted from the moment
+ * the simulator saw/opened the shift (the real startTime on the stand can be
+ * days old — we must not close it right at startup).
  */
 let shiftTrackedSince = null
 let currentShiftId = null

@@ -1,5 +1,5 @@
-// Обёртки над gizmovsky: операторский клиент + пользовательские клиенты
-// (bearer-токены ботов для user-корзин — заказы с заметкой, как в PWA).
+// Wrappers around gizmovsky: an operator client + per-user clients
+// (bot bearer tokens for user carts — orders with a note, like in the PWA).
 import { GizmoSDK } from 'gizmovsky'
 import { config } from './config.js'
 
@@ -11,8 +11,8 @@ const mkOperatorSdk = () => new GizmoSDK({
   password: config.gizmo.password,
 })
 
-// let + live-binding: reconnectGizmo() пересоздаёт клиент после смены доступов
-// в мастере/настройках, и все импортёры сразу видят новый (без перезапуска).
+// let + live binding: reconnectGizmo() recreates the client after credentials
+// change in the wizard/settings, and every importer sees the new one (no restart).
 export let gapi = mkOperatorSdk()
 
 export function reconnectGizmo() {
@@ -20,8 +20,8 @@ export function reconnectGizmo() {
   userTokens.clear()
 }
 
-// Gizmo местами отдаёт {Type, Model}-обёртку и PascalCase-ключи — разворачиваем
-// и нормализуем в camelCase (тот же приём, что gizmo-api.js в GGBOOK_DB_API).
+// Gizmo sometimes returns a {Type, Model} wrapper with PascalCase keys — we
+// unwrap it and normalize to camelCase (same approach as gizmo-api.js elsewhere).
 function unwrap(item) {
   const m = item?.Model ?? item?.model ?? item
   if (!m || typeof m !== 'object' || Array.isArray(m)) return m
@@ -45,7 +45,7 @@ export function model(res) {
 
 const userTokens = new Map() // username → bearer
 
-/** SDK от имени игрока (user-эндпоинты /api/user/v3/...). */
+/** SDK acting as a player (user endpoints /api/user/v3/...). */
 export async function userApi(username, password) {
   let token = userTokens.get(username)
   if (!token) {

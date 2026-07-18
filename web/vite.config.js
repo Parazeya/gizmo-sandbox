@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 
-// Дев-режим: vite на 5556, API симулятора проксируется на 5555.
-// Прод: `npm run build` → dist, его раздаёт сам симулятор (src/ui.js).
+// Dev mode: vite on 5556, the simulator API is proxied to 5555.
+// Prod: `npm run build` → dist, served by the simulator itself (src/ui.js).
 export default defineConfig({
   plugins: [svelte()],
   server: {

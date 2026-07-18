@@ -1,13 +1,13 @@
-// Общее состояние симулятора — БЕЗ поллинга: один SSE-канал (/events).
-// При подключении сервер шлёт снапшот `init` (state + история + лента),
-// дальше только инкрементальные пуши: `state` (2с), `metric` (1 точка/с),
-// `feed` (строка ленты). Обрыв связи EventSource переподключает сам,
-// init при реконнекте восстанавливает всё состояние.
+// Shared simulator state — NO polling: a single SSE channel (/events).
+// On connect the server sends an `init` snapshot (state + history + feed),
+// then only incremental pushes: `state` (2s), `metric` (1 point/s),
+// `feed` (a feed line). EventSource reconnects on a dropped connection,
+// and `init` on reconnect restores the whole state.
 
 export const sim = $state({
-  state: null,     // снапшот мира
-  history: [],     // точки метрик для графиков
-  feed: [],        // строки живой ленты {t, msg}
+  state: null,     // world snapshot
+  history: [],     // metric points for the charts
+  feed: [],        // live feed lines {t, msg}
   connected: false,
 })
 

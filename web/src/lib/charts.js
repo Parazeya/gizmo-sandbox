@@ -1,5 +1,6 @@
-// «Биржевые» живые графики: лента непрерывно ползёт влево (ось X привязана к
-// «сейчас»), последняя цена тянется до правого края с ценником и пульс-точкой.
+// "Exchange-style" live charts: the tape continuously scrolls left (the X axis
+// is anchored to "now"), the last price stretches to the right edge with a
+// price tag and a pulsing dot.
 const dpr = () => window.devicePixelRatio || 1
 
 const fmtT = (ms) => {
@@ -11,10 +12,10 @@ export const nice = (v) => (v >= 1000 ? (v / 1000).toFixed(1) + 'к' : String(Ma
 
 /**
  * @param cv canvas
- * @param hist массив точек {t, ...}
- * @param series [{k, c, f?}] — ключ, цвет, заливка
- * @param rangeMin окно в минутах
- * @param minMax минимальный потолок оси Y
+ * @param hist array of points {t, ...}
+ * @param series [{k, c, f?}] — key, color, fill
+ * @param rangeMin window in minutes
+ * @param minMax minimum Y-axis ceiling
  */
 export function drawChart(cv, hist, series, rangeMin, minMax = 0) {
   const D = dpr()
@@ -42,7 +43,7 @@ export function drawChart(cv, hist, series, rangeMin, minMax = 0) {
   const X = (t) => padL + (iw * (t - t0)) / (t1 - t0)
   const Y = (v) => padT + ih - (ih * v) / vMax
 
-  // сетка Y
+  // Y grid
   ctx.font = '9px system-ui'; ctx.textAlign = 'right'
   for (let i = 0; i <= 3; i++) {
     const y = padT + ih - (ih * i) / 3
@@ -50,7 +51,7 @@ export function drawChart(cv, hist, series, rangeMin, minMax = 0) {
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke()
     ctx.fillStyle = '#66707c'; ctx.fillText(nice((vMax * i) / 3), padL - 4, y + 3)
   }
-  // скользящая сетка времени (круглые интервалы)
+  // sliding time grid (round intervals)
   const step = rangeMin === 1 ? 15000 : rangeMin === 5 ? 60000 : 180000
   ctx.textAlign = 'center'
   for (let tt = Math.ceil(t0 / step) * step; tt <= t1; tt += step) {
@@ -83,7 +84,7 @@ export function drawChart(cv, hist, series, rangeMin, minMax = 0) {
   }
   ctx.restore()
 
-  // ценники и пульс-точки
+  // price tags and pulse dots
   series.forEach((s, si) => {
     const lastV = pts[pts.length - 1][s.k] ?? 0
     const y = Math.max(padT + 7, Math.min(padT + ih - 7, Y(lastV)))

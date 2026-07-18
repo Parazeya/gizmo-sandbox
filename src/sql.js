@@ -1,6 +1,6 @@
-// Прямой SQL — ТОЛЬКО для AppStat («поиграл в приложение»): клиентского
-// API записи запусков у Gizmo нет, эти строки пишет только клиент на хосте.
-// Без SQL_PASS событие appSession просто выключено.
+// Direct SQL — ONLY for AppStat ("played an application"): Gizmo has no client
+// API to write launches, those rows are written solely by the host client.
+// Without SQL_PASS the appSession event is simply disabled.
 import { config } from './config.js'
 
 let pool = null
@@ -26,7 +26,7 @@ async function getPool() {
 
 export async function insertAppStat({ appId, appExeId, hostId, userId, spanSeconds, branchId }) {
   const p = await getPool()
-  // AppExeId — NOT NULL: exe-строки сеет world.js через API (applicationExecutables).
+  // AppExeId is NOT NULL: exe rows are seeded by world.js via the API (applicationExecutables).
   await p.request()
     .input('AppId', appId)
     .input('AppExeId', appExeId)
@@ -38,7 +38,7 @@ export async function insertAppStat({ appId, appExeId, hostId, userId, spanSecon
             VALUES (@AppId, @AppExeId, @HostId, @UserId, @Span, DATEADD(SECOND, -@Span, GETDATE()), @BranchId)`)
 }
 
-/** Пинг для API-тестов: SELECT 1. */
+/** Ping for the API tests: SELECT 1. */
 export async function sqlPing() {
   const p = await getPool()
   const r = await p.request().query('SELECT 1 AS ok')
@@ -56,7 +56,7 @@ export function disableSql(reason, log) {
   }
 }
 
-/** Пересоздать подключение после смены конфига (мастер настройки / ⚙ Настройки). */
+/** Recreate the connection after a config change (setup wizard / ⚙ Settings). */
 export async function sqlReconnect() {
   if (pool) { await pool.close().catch(() => {}); pool = null }
   disabled = !config.sql.password

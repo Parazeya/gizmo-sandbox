@@ -1,18 +1,18 @@
-// «Мир» симуляции: боты, хосты, товары, ассеты, приложения. Всё создаётся
-// или подгружается при старте; недостающие сущности сеются автоматически.
+// The simulation "world": bots, hosts, products, assets, applications. Everything
+// is created or loaded at startup; missing entities are seeded automatically.
 import { gapi, data, model } from './gizmo.js'
 import { config } from './config.js'
 
 export const world = {
   bots: [],       // { userId, username, hostId|null, sessionSince, assets: Set }
   hosts: [],      // { id, number, name }
-  barProducts: [],   // не-time товары
-  timeProducts: [],  // пакеты времени
+  barProducts: [],   // non-time products
+  timeProducts: [],  // time packages
   assets: [],     // { id, number, typeName }
-  apps: [],       // { id, title, exeId } — для AppStat
-  ordersQueue: [],// активные заказы (обновляет sweepOrders) — для веб-интерфейса
-  nextBotIndex: 1,// следующий номер для «регистрации» нового игрока
-  revenue: 0,     // «касса» за сеанс симуляции (депозиты + продажи + заказы)
+  apps: [],       // { id, title, exeId } — for AppStat
+  ordersQueue: [],// active orders (updated by sweepOrders) — for the web UI
+  nextBotIndex: 1,// next number for "registering" a new player
+  revenue: 0,     // session "register" total (deposits + sales + orders)
 }
 
 const FIRST = [
@@ -30,7 +30,7 @@ const FIRST = [
   'Маша', 'Толик', 'Надя', 'Олег', 'Рита', 'Саша', 'Ульяна', 'Филя', 'Зина', 'Ролан',
 ]
 
-// Игровые ники — их носят задроты и стримеры (и иногда остальные).
+// Gamer tags — worn by grinders and streamers (and sometimes the rest).
 const NICKS = [
   'ShadowFox', 'NoScope777', 'CyberVolk', 'PingLord', 'Kefir2000', 'MamkinTank',
   'Zloy_Bober', 'FrostByte', 'Medved_GG', 'DedInside', 'TurboYozh', 'NightOwl',
@@ -41,7 +41,7 @@ const NICKS = [
   'ValenokX', 'SgushenkaGG',
 ]
 
-// ── Персоны: у каждого бота свой характер ─────────────────────────────────────
+// ── Personas: every bot has its own character ────────────────────────────────
 const CHARACTERS = [
   { trait: 'задрот',      presence: 0.9,  session: [120, 240], chatty: 0.2, spender: 0.4 },
   { trait: 'казуал',      presence: 0.5,  session: [45, 120],  chatty: 0.4, spender: 0.5 },
@@ -51,8 +51,8 @@ const CHARACTERS = [
   { trait: 'стример',     presence: 0.75, session: [150, 240], chatty: 0.6, spender: 0.7 },
 ]
 
-// Детерминированный «рандом» от строки — чтобы посещаемость на конкретный
-// день была стабильной (перезапуск симулятора не меняет, кто сегодня пришёл).
+// Deterministic "random" from a string — so attendance for a given day is
+// stable (restarting the simulator doesn't change who came in today).
 export function hashChance(str) {
   let h = 2166136261
   for (const ch of str) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619) }
@@ -60,8 +60,8 @@ export function hashChance(str) {
 }
 
 export function makePersona(index) {
-  // Соль поколения мира: после «снести и сгенерировать заново» те же логины
-  // получают других персонажей (имена/характеры/ники перемешиваются).
+  // World-generation salt: after "tear down and regenerate" the same logins
+  // get different characters (names/traits/nicks are reshuffled).
   const shift = ((config.worldGen ?? 1) - 1) * 17
   const i = index + shift
   const character = CHARACTERS[i % CHARACTERS.length]
@@ -74,19 +74,19 @@ export function makePersona(index) {
   }
 }
 
-/** Пришёл ли бот сегодня: у каждого — свой шанс, бросок стабилен в рамках дня.
- *  В выходные народу больше — шанс прихода подрастает. */
+/** Whether a bot showed up today: each has its own chance, the roll is stable
+ *  within the day. Weekends are busier — the arrival chance goes up. */
 export function isPresentToday(bot, dateKey) {
   const weekday = new Date(dateKey).getDay()
   const boost = (weekday === 0 || weekday === 6) ? 1.25 : 1
   return hashChance(bot.username + dateKey) < Math.min(0.97, bot.persona.presence * boost)
 }
 
-// Группа пользователей по умолчанию и следующий свободный номер sim_bot_NN —
-// нужны и при старте, и для «регистрации» новых игроков по ходу симуляции.
+// The default user group and the next free sim_bot_NN number — needed both at
+// startup and to "register" new players over the course of the simulation.
 let defaultUserGroupId = null
 
-/** Создать (или подхватить существующего) бота sim_bot_<i> и вернуть объект бота. */
+/** Create (or pick up an existing) bot sim_bot_<i> and return the bot object. */
 export async function createBot(i, log, existingUser = null) {
   const username = `${config.botPrefix}${String(i).padStart(2, '0')}`
   const persona = makePersona(i - 1)
@@ -109,8 +109,8 @@ export async function createBot(i, log, existingUser = null) {
   }
 }
 
-// Консоли (endpoint-хосты): на одну садятся несколько человек (maximumUsers).
-// ВАЖНО (живьём): хост БЕЗ группы не пускает никого (loginResult 32).
+// Consoles (endpoint hosts): several people sit at one (maximumUsers).
+// IMPORTANT (verified live): a host WITHOUT a group lets nobody in (loginResult 32).
 async function seedConsoles(log) {
   const existing = data(await gapi.v3.hosts.getHosts({ paginationLimit: -1, isDeleted: false }))
   const groups = data(await gapi.v3.hostGroups.getHostGroups({ paginationLimit: -1 }))
@@ -120,7 +120,7 @@ async function seedConsoles(log) {
   for (const name of CONSOLES) {
     const have = existing.find(h => h.name === name)
     if (have) {
-      // Ремонт: группа обязательна, иначе консоль никого не пускает.
+      // Repair: the group is mandatory, otherwise the console lets nobody in.
       if (!have.hostGroupId) {
         await gapi.v3.hosts.putHosts({
           id: have.id, hostType: 1, hostGroupId: epGroupId, number: have.number, name,
@@ -139,7 +139,7 @@ async function seedConsoles(log) {
 }
 
 export async function loadWorld(log) {
-  // 1. Хосты (+ консоли-endpoints: сеются при первом запуске)
+  // 1. Hosts (+ endpoint consoles: seeded on first run)
   await seedConsoles(log)
   const hostsRes = await gapi.v3.hosts.getHosts({ paginationLimit: -1, isDeleted: false, branchId: config.branchId })
   world.hosts = data(hostsRes).map(h => ({
@@ -150,7 +150,7 @@ export async function loadWorld(log) {
   const cons = world.hosts.filter(h => h.type === 'endpoint')
   log(`хостов: ${world.hosts.length}${cons.length ? ` (консолей: ${cons.length})` : ''}`)
 
-  // 2. Боты — создаём недостающих sim_bot_NN (в первой группе пользователей)
+  // 2. Bots — create the missing sim_bot_NN (in the first user group)
   const groupsRes = await gapi.v3.userGroups.getUserGroups({ paginationLimit: -1 })
   defaultUserGroupId = data(groupsRes)[0]?.id
   if (!defaultUserGroupId) throw new Error('на сервере нет ни одной группы пользователей')
@@ -158,8 +158,8 @@ export async function loadWorld(log) {
   const usersRes = await gapi.v3.users.getUsers({ paginationLimit: -1 })
   const byUsername = new Map(data(usersRes).map(u => [u.username, u]))
 
-  // Подхватываем и ботов с номерами выше config.players (зарегистрировались
-  // в прошлых запусках) — взаимодействие идёт со всей «базой», не с одними и теми же.
+  // Also pick up bots with numbers above config.players (registered in previous
+  // runs) — interaction spans the whole "base", not just the same few.
   const botIndexes = new Set()
   for (let i = 1; i <= config.players; i++) botIndexes.add(i)
   for (const name of byUsername.keys()) {
@@ -171,8 +171,8 @@ export async function loadWorld(log) {
   }
   world.nextBotIndex = Math.max(...botIndexes) + 1
 
-  // Кто-то из ботов мог остаться сидеть с прошлого запуска — подхватываем
-  // и назначаем план досидеть (иначе plannedUntil=null → мгновенный уход).
+  // Some bots may still be seated from the previous run — pick them up and give
+  // them a plan to keep sitting (otherwise plannedUntil=null → instant leave).
   const minsMs = (m) => (m * 60_000) / config.speed
   const sessRes = await gapi.v3.userSessions.getUserSessions({ paginationLimit: -1 })
   for (const s of data(sessRes)) {
@@ -180,7 +180,7 @@ export async function loadWorld(log) {
     const bot = world.bots.find(b => b.userId === s.userId)
     if (!bot) continue
     const [lo, hi] = bot.persona.session
-    // «Не его день» — досиживает недолго и уходит.
+    // "Not their day" — they sit a little longer and leave.
     const left = isPresentToday(bot, new Date().toISOString().slice(0, 10))
       ? lo + Math.random() * (hi - lo)
       : 5 + Math.random() * 15
@@ -189,27 +189,28 @@ export async function loadWorld(log) {
     bot.plannedUntil = Date.now() + minsMs(left)
   }
 
-  // И ассеты на руках с прошлого запуска.
+  // And assets held from the previous run.
   const activeAssets = await gapi.v3.assetTransactions.getAssetTransactions({ isActive: true, paginationLimit: -1 })
   for (const t of data(activeAssets)) {
     const bot = world.bots.find(b => b.userId === t.userId)
     if (bot) bot.assets.add(t.assetId)
   }
 
-  // 3. Товары — если бар-каталог тощий, сеем настоящий (группы + позиции)
+  // 3. Products — if the bar catalog is thin, seed a real one (groups + items)
   await seedBarCatalog(log)
   const productsRes = await gapi.v3.products.getProducts({ paginationLimit: -1, isDeleted: false })
   const products = data(productsRes).filter(p => !p.disallowClientOrder)
-  // В бар-пул берём ТОЛЬКО настоящие товары (productType 0), с положительной ценой
-  // и без служебных имён от сканов API (api_scan_*/api_mut_*) — иначе бот закажет
-  // фейковый товар за $0, а нулевой заказ невозможно оплатить и завершить (виснет).
+  // The bar pool takes ONLY real products (productType 0) with a positive price
+  // and without the API-scan service names (api_scan_*/api_mut_*) — otherwise a
+  // bot would order a fake $0 product, and a zero-total order can't be paid or
+  // completed (it gets stuck).
   const isTestProduct = (p) => /^api_(scan|mut)_/i.test(p.name || '')
   world.barProducts = products.filter(p =>
     p.productType === 0 && Number(p.price) > 0 && !isTestProduct(p))
   world.timeProducts = products.filter(p => p.timeProduct || p.productType === 1)
   log(`товаров: бар ${world.barProducts.length}, время ${world.timeProducts.length}`)
 
-  // 4. Ассеты
+  // 4. Assets
   const assetsRes = await gapi.v3.assets.getAssets({ paginationLimit: -1, branchId: config.branchId })
   const typesRes = await gapi.v3.assetTypes.getAssetTypes({ paginationLimit: -1 })
   const typeName = new Map(data(typesRes).map(t => [t.id, t.name]))
@@ -217,8 +218,8 @@ export async function loadWorld(log) {
     .map(a => ({ id: a.id, number: a.number, typeName: typeName.get(a.assetTypeId) ?? `Тип ${a.assetTypeId}` }))
   log(`ассетов: ${world.assets.length}`)
 
-  // 5. Приложения (для AppStat) — сеем каталог, если пусто.
-  // У приложения обязательна категория (FK) — берём «Games» или первую.
+  // 5. Applications (for AppStat) — seed a catalog if empty.
+  // An application requires a category (FK) — take "Games" or the first one.
   const APPS = ['Counter-Strike 2', 'Dota 2', 'Fortnite', 'Valorant', 'World of Tanks', 'GTA V', 'Apex Legends']
   const appsRes = await gapi.v3.applications.getApplications({ paginationLimit: -1 })
   let apps = data(appsRes)
@@ -233,7 +234,7 @@ export async function loadWorld(log) {
     log(`создано приложений: ${apps.length}`)
   }
 
-  // AppStat.AppExeId — NOT NULL: каждому приложению нужен исполняемый файл.
+  // AppStat.AppExeId is NOT NULL: every application needs an executable file.
   const exesRes = await gapi.v3.applicationExecutables.getApplicationExecutables({ paginationLimit: -1 }).catch(() => null)
   const exeByApp = new Map()
   for (const e of data(exesRes)) if (!exeByApp.has(e.applicationId)) exeByApp.set(e.applicationId, e.id)
@@ -253,7 +254,7 @@ export async function loadWorld(log) {
   log(`приложений с exe (для AppStat): ${world.apps.length}`)
 }
 
-// Настоящий бар-каталог: напитки, снеки, еда (по образу реального клуба).
+// A real bar catalog: drinks, snacks, food (modeled on an actual club).
 async function seedBarCatalog(log) {
   const existing = data(await gapi.v3.products.getProducts({ paginationLimit: -1, isDeleted: false }))
   const barCount = existing.filter(p => !p.timeProduct && p.productType !== 1).length
@@ -275,11 +276,11 @@ async function seedBarCatalog(log) {
   const groupByName = new Map(groupsRes.map(g => [g.name, g.id]))
   const existingNames = new Set(existing.map(p => p.name))
 
-  // ВАЖНО (выяснено живьём): товар, созданный через API, продаётся только после
-  // трёх шагов: 1) разрешающие записи disallowedusergroups {isDisallowed:false}
-  // (иначе UserGroupRestricted), 2) включение на бренчах postProductsByIdBranches
-  // [{branchId, isEnabled:true}] (иначе BranchRestricted), 3) «touch» putProducts —
-  // без него Gizmo держит старые ограничения в кэше и касса всё равно кидает 400.
+  // IMPORTANT (found live): a product created via the API only becomes sellable
+  // after three steps: 1) allow rows disallowedusergroups {isDisallowed:false}
+  // (else UserGroupRestricted), 2) enable on branches postProductsByIdBranches
+  // [{branchId, isEnabled:true}] (else BranchRestricted), 3) a "touch" putProducts —
+  // without it Gizmo keeps the old restrictions cached and the register still 400s.
   const userGroups = data(await gapi.v3.userGroups.getUserGroups({ paginationLimit: -1 }))
   async function makeSellable(productId) {
     const rows = data(await gapi.v3.products.getProductsByIdDisallowedusergroups(productId).catch(() => null))
@@ -314,7 +315,7 @@ async function seedBarCatalog(log) {
           productGroupId: groupId,
           name,
           price,
-          points,           // баллы за покупку
+          points,           // loyalty points per purchase
           purchaseOptions: 0,
         }).catch(() => null)
         if (res?.result?.id) {
@@ -326,7 +327,7 @@ async function seedBarCatalog(log) {
     if (created) log(`насеян бар-каталог: +${created} товаров (Напитки/Снеки/Еда)`)
   }
 
-  // Ремонт ранее насеянных: одна idempotent-проходка (группы+бренчи+touch).
+  // Repair previously seeded ones: one idempotent pass (groups+branches+touch).
   let repaired = 0
   for (const p of existing) {
     if (p.timeProduct || p.productType === 1) continue
@@ -338,24 +339,24 @@ async function seedBarCatalog(log) {
   if (repaired) log(`починены продажи (группы/бренчи) у ${repaired} товаров`)
 }
 
-// ── Снести мир и сгенерировать заново ────────────────────────────────────────
-// Полностью удаляет ботов со стенда (hard delete — логины освобождаются),
-// отменяет их брони, возвращает ассеты, поднимает worldGen (новые персоны и
-// планировка комнат) и пересоздаёт мир с нуля.
+// ── Tear down the world and regenerate it ────────────────────────────────────
+// Fully deletes the bots from the stand (hard delete — logins are freed),
+// cancels their reservations, returns assets, bumps worldGen (new personas and
+// room layout) and rebuilds the world from scratch.
 export async function resetWorld(log, updateConfig) {
   log('♻ сношу мир: разлогиниваю и удаляю всех ботов…')
-  // выйти из-за хостов и вернуть ассеты
+  // log out of hosts and return assets
   for (const b of [...world.bots]) {
     for (const assetId of [...b.assets]) await gapi.v3.users.putUsersAssetsByAssetIdCheckin(assetId).catch(() => {})
     await gapi.v3.users.postUsersByUserIdLogout(b.userId).catch(() => {})
   }
-  // отменить активные брони ботов
+  // cancel the bots' active reservations
   const botIds = new Set(world.bots.map(b => b.userId))
   const resv = data(await gapi.v3.reservations.getReservations({ paginationLimit: -1 }).catch(() => null))
   for (const r of resv) {
     if (r.status === 0 && botIds.has(r.userId)) await gapi.v3.reservations.putReservationsByIdCancel(r.id, {}).catch(() => {})
   }
-  // hard delete всех sim_bot_* (в т.ч. оставшихся с прошлых поколений)
+  // hard delete all sim_bot_* (including leftovers from previous generations)
   const users = data(await gapi.v3.users.getUsers({ paginationLimit: -1 }).catch(() => null))
   let deleted = 0
   for (const u of users) {
@@ -364,7 +365,7 @@ export async function resetWorld(log, updateConfig) {
     if (ok && !ok.isError) deleted++
   }
   log(`♻ удалено пользователей: ${deleted}`)
-  // новое поколение: другие персоны и планировка комнат
+  // new generation: different personas and room layout
   updateConfig?.({ worldGen: (config.worldGen ?? 1) + 1 })
   world.bots = []
   world.nextBotIndex = 1
@@ -376,7 +377,7 @@ export async function resetWorld(log, updateConfig) {
 
 export const freeBots = () => world.bots.filter(b => !b.hostId)
 export const seatedBots = () => world.bots.filter(b => b.hostId)
-// Хост свободен, пока есть места: у ПК одно, у консоли maximumUsers.
+// A host is free while it has open seats: a PC has one, a console maximumUsers.
 export const hostOccupancy = () => {
   const cnt = new Map()
   for (const b of world.bots) if (b.hostId) cnt.set(b.hostId, (cnt.get(b.hostId) ?? 0) + 1)
