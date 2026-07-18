@@ -8,6 +8,10 @@ sim.err.log
 # Отчёты сканов API (локальные результаты вашего стенда)
 apitest-reports/
 
+# Лок-файлы не коммитим (решение проекта)
+package-lock.json
+web/package-lock.json
+
 # Зависимости и сборки
 node_modules/
 web/node_modules/
