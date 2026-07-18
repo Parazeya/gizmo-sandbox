@@ -1,8 +1,8 @@
 <script>
-  // Немодальная выдвижная панель: отчёты в реальном времени поверх любого вида,
-  // страница под ней остаётся полностью интерактивной.
+  // Non-modal slide-out panel: real-time reports over any view, the page
+  // underneath stays fully interactive.
   import { fly } from 'svelte/transition'
-  import { t } from '../lib/i18n.svelte.js'
+  import { t, i18n } from '../lib/i18n.svelte.js'
   import { sim } from '../lib/sim.svelte.js'
   import { drawChart } from '../lib/charts.js'
 
@@ -43,8 +43,8 @@
   <aside transition:fly={{ x: 480, duration: 220 }}>
     <div class="head">
       <b>{t('📊 Отчёты')} · {t('реальное время')}</b>
-      {#if last}<span class="m">{new Date(last.t).toLocaleTimeString('ru-RU')}</span>{/if}
-      <button class="x" onclick={() => (open = false)} title="Закрыть">×</button>
+      {#if last}<span class="m">{new Date(last.t).toLocaleTimeString(i18n.lang === 'en' ? 'en-GB' : 'ru-RU')}</span>{/if}
+      <button class="x" onclick={() => (open = false)} title={t('Закрыть')}>×</button>
     </div>
     <div class="rng">
       {#each [1, 5, 15] as m}
@@ -54,25 +54,25 @@
 
     <div class="card">
       <h4>{t('Занятость клуба')}</h4>
-      <div class="v" style="color:var(--green)">{last ? `${last.seated} из ${last.bots} за хостами` : '—'}</div>
+      <div class="v" style="color:var(--green)">{last ? `${last.seated} ${t('из')} ${last.bots} ${t('за хостами')}` : '—'}</div>
       <canvas bind:this={c1}></canvas>
     </div>
     <div class="card">
       <h4>{t('Касса за сеанс')}</h4>
-      <div class="v" style="color:var(--amber)">{last ? last.revenue.toLocaleString('ru-RU') + ' ₽' : '—'}</div>
+      <div class="v" style="color:var(--amber)">{last ? last.revenue.toLocaleString(i18n.lang === 'en' ? 'en-US' : 'ru-RU') + ' ₽' : '—'}</div>
       <canvas bind:this={c2}></canvas>
     </div>
     <div class="card">
       <h4>{t('Очередь заказов бара')}</h4>
-      <div class="v" style="color:var(--blue)">{last ? last.queue + ' в очереди' : '—'}</div>
+      <div class="v" style="color:var(--blue)">{last ? last.queue + ' ' + t('в очереди') : '—'}</div>
       <canvas bind:this={c3}></canvas>
     </div>
     <div class="card">
       <h4>{t('Сервис (всего за сеанс)')}</h4>
       <div class="lg">
-        <span><i style="background:var(--green)"></i>выдано</span>
-        <span><i style="background:var(--pink)"></i>касса</span>
-        <span><i style="background:var(--blue)"></i>пополнения</span>
+        <span><i style="background:var(--green)"></i>{t('выдано')}</span>
+        <span><i style="background:var(--pink)"></i>{t('касса')}</span>
+        <span><i style="background:var(--blue)"></i>{t('пополнения')}</span>
       </div>
       <canvas bind:this={c4}></canvas>
     </div>

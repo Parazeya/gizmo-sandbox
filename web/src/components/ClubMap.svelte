@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import { createScene } from '../lib/scene.js'
   import { sim } from '../lib/sim.svelte.js'
+  import { t } from '../lib/i18n.svelte.js'
 
   let cvEl = $state(null)
   let scene = null
@@ -9,7 +10,7 @@
 
   onMount(() => {
     scene = createScene(cvEl)
-    fed = sim.feed.length // историю ленты не проигрываем — только новые события
+    fed = sim.feed.length // don't replay feed history — only new events
     if (sim.state) scene.setState(sim.state)
     scene.fitCam()
     return () => { scene.destroy(); scene = null }
@@ -21,13 +22,13 @@
   $effect(() => {
     const len = sim.feed.length
     if (!scene) return
-    if (len < fed) fed = len // лента пересоздана (реконнект SSE) — не проигрывать историю
+    if (len < fed) fed = len // feed was recreated (SSE reconnect) — don't replay history
     while (fed < len) scene.handleEvent(sim.feed[fed++].msg)
   })
 </script>
 
 <div class="wrap">
-  <span class="hint">колесо — зум · тяни — перемещение · двойной клик — вписать</span>
+  <span class="hint">{t('колесо — зум · тяни — перемещение · двойной клик — вписать')}</span>
   <canvas bind:this={cvEl}></canvas>
 </div>
 

@@ -1,6 +1,7 @@
 // "Exchange-style" live charts: the tape continuously scrolls left (the X axis
 // is anchored to "now"), the last price stretches to the right edge with a
 // price tag and a pulsing dot.
+import { t } from './i18n.svelte.js'
 const dpr = () => window.devicePixelRatio || 1
 
 const fmtT = (ms) => {
@@ -32,7 +33,7 @@ export function drawChart(cv, hist, series, rangeMin, minMax = 0) {
   const iw = w - padL - padR, ih = h - padT - padB
   if (pts.length < 2) {
     ctx.fillStyle = '#8b949e'; ctx.font = '11px system-ui'
-    ctx.fillText('Копим данные…', w / 2 - 42, h / 2)
+    ctx.fillText(t('Копим данные…'), w / 2 - 42, h / 2)
     return
   }
 

@@ -1,6 +1,8 @@
 // Pixel scene of the club (top-down). AUTO-PORTED from src/ui.js PAGE_CLUB —
 // logic 1:1, but the data comes from outside: setState(/api/state snapshot) and
 // handleEvent(feed line). Camera: wheel-zoom, drag-pan, dblclick — fit.
+// imported as `tr` because draw functions use `t` for the animation time
+import { t as tr } from './i18n.svelte.js'
 export function createScene(cv) {
 
   const ctx = cv.getContext('2d')
@@ -416,7 +418,7 @@ export function createScene(cv) {
       outlineRect(384, 636, 60, 6, '#5b3a21'); ctx.fillStyle = '#6d4a29'; ctx.fillRect(384, 636, 60, 2)  // лавочка
       outlineRect(388, 642, 4, 8, '#3a2416'); outlineRect(436, 642, 4, 8, '#3a2416')
       drawTorch(560, 630, t)
-      ctx.fillStyle = 'rgba(252,232,176,.6)'; ctx.font = 'bold 10px monospace'; ctx.fillText('🚬 КУРИЛКА', 384, 616)
+      ctx.fillStyle = 'rgba(252,232,176,.6)'; ctx.font = 'bold 10px monospace'; ctx.fillText('🚬 ' + tr('КУРИЛКА'), 384, 616)
       return
     }
     if (TH === 'doom') {
@@ -447,7 +449,7 @@ export function createScene(cv) {
       }
       ctx.stroke()
       drawTorch(384, 630, t); drawTorch(660, 630, t)
-      ctx.fillStyle = 'rgba(255,120,90,.6)'; ctx.font = 'bold 10px monospace'; ctx.fillText('🚬 КУРИЛКА', 404, 616)
+      ctx.fillStyle = 'rgba(255,120,90,.6)'; ctx.font = 'bold 10px monospace'; ctx.fillText('🚬 ' + tr('КУРИЛКА'), 404, 616)
       return
     }
     ctx.fillStyle = '#090b0f'; ctx.fillRect(0, 600, 1024, 64)          // ночная улица
@@ -470,7 +472,7 @@ export function createScene(cv) {
     ctx.fillStyle = OUTLINE; ctx.fillRect(486, 632, 20, 14); ctx.fillStyle = '#25602f'; ctx.fillRect(487, 633, 18, 12)
     ctx.fillStyle = '#317a3c'; ctx.fillRect(490, 635, 6, 5); ctx.fillStyle = '#276634'; ctx.fillRect(498, 638, 5, 4)
     // label
-    ctx.fillStyle = 'rgba(139,148,158,.55)'; ctx.font = 'bold 10px monospace'; ctx.fillText('🚬 КУРИЛКА', 384, 616)
+    ctx.fillStyle = 'rgba(139,148,158,.55)'; ctx.font = 'bold 10px monospace'; ctx.fillText('🚬 ' + tr('КУРИЛКА'), 384, 616)
   }
 
   // ── KITCHEN: a cook prepares orders, tickets 'in progress', a steaming stove ──
@@ -543,7 +545,7 @@ export function createScene(cv) {
     // neon label
     ctx.font = 'bold 10px monospace'
     ctx.shadowColor = 'rgba(240,180,80,.9)'; ctx.shadowBlur = 6
-    ctx.fillStyle = '#f5c97a'; ctx.fillText('КУХНЯ', x + 4, y - 5)
+    ctx.fillStyle = '#f5c97a'; ctx.fillText(tr('КУХНЯ'), x + 4, y - 5)
     ctx.shadowBlur = 0
   }
 
@@ -689,7 +691,7 @@ export function createScene(cv) {
       ctx.fillStyle = color; ctx.fillText(txt, x, y)
       ctx.shadowBlur = 0
     }
-    neon('ЗАЛ', 16, 18, 'rgba(139,168,198,.8)')
+    neon(tr('ЗАЛ'), 16, 18, 'rgba(139,168,198,.8)')
     if (layoutSeed % 2 === 1) {
       neon('BOOTCAMP', 544, 18, 'rgba(110,205,140,.8)')
       neon('VIP', 544, 292, 'rgba(190,140,235,.85)')
@@ -697,9 +699,9 @@ export function createScene(cv) {
       neon('VIP', 544, 18, 'rgba(190,140,235,.85)')
       neon('BOOTCAMP', 544, 292, 'rgba(110,205,140,.8)')
     }
-    neon('КОНСОЛИ', 544, 452, 'rgba(235,130,150,.8)')
-    neon('БАР', 14, 486, 'rgba(224,164,80,.85)')
-    ctx.fillStyle = 'rgba(139,148,158,.5)'; ctx.fillText('ВХОД →', 430, 585)
+    neon(tr('КОНСОЛИ'), 544, 452, 'rgba(235,130,150,.8)')
+    neon(tr('БАР'), 14, 486, 'rgba(224,164,80,.85)')
+    ctx.fillStyle = 'rgba(139,148,158,.5)'; ctx.fillText(tr('ВХОД →'), 430, 585)
     drawOutdoor(t)   // улица-курилка снизу
     drawProps(t)     // растения, часы, вывеска, постеры, коврик, туалет
     // the back bar (shelves/fridges) — drawn BEFORE the operator, who stands in front
@@ -1042,7 +1044,7 @@ export function createScene(cv) {
     ctx.fillStyle = TH === 'doom' ? '#0b0505' : TH === 'terraria' ? '#0c1108' : '#07090d'
     ctx.fillRect(0, 0, cv.clientWidth, cv.clientHeight)
     ctx.setTransform(dpr * cam.z, 0, 0, dpr * cam.z, dpr * cam.x, dpr * cam.y)
-    if (!built) { ctx.fillStyle = '#8b949e'; ctx.font = '13px system-ui'; ctx.fillText('Ждём данные симулятора…', 420, 290); requestAnimationFrame(frame); return }
+    if (!built) { ctx.fillStyle = '#8b949e'; ctx.font = '13px system-ui'; ctx.fillText(tr('Ждём данные симулятора…'), 420, 290); requestAnimationFrame(frame); return }
 
     // hosts whose players stepped away (smoking area/WC) — we show AFK on them
     afkHostNames = new Set()

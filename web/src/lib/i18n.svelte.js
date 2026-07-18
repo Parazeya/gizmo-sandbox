@@ -98,7 +98,12 @@ const EN = {
     'One of the versions has no saved API doc (spec_*.json appears on the first scan of a version) — the doc diff is unavailable.',
   // ReportsPanel
   'Живые отчёты': 'Live reports', 'Занятость': 'Occupancy', 'Касса': 'Revenue',
-  'Очередь': 'Queue', 'Сервис': 'Service',
+  'Очередь': 'Queue', 'Сервис': 'Service', 'Закрыть': 'Close',
+  'за хостами': 'seated', 'в очереди': 'in queue', 'выдано': 'delivered', 'касса': 'register', 'пополнения': 'top-ups',
+  // Map zone labels (canvas) + placeholders
+  'ЗАЛ': 'HALL', 'БАР': 'BAR', 'КОНСОЛИ': 'CONSOLES', 'КУХНЯ': 'KITCHEN', 'КУРИЛКА': 'SMOKING', 'ВХОД →': 'ENTRANCE →',
+  'Ждём данные симулятора…': 'Waiting for simulator data…', 'Копим данные…': 'Collecting data…',
+  'колесо — зум · тяни — перемещение · двойной клик — вписать': 'wheel — zoom · drag — pan · double-click — fit',
   'Удалить': 'Delete', 'Удалить ВСЕ сохранённые отчёты сканов? (API-доки spec_*.json останутся)': 'Delete ALL saved scan reports? (API docs spec_*.json will remain)',
   '🧨 Скан мутаций создаст в КАЖДОМ подходящем модуле тестовую запись (api_mut_*), обновит и удалит её.\nЧужие данные не трогаются, но на сервере будут реальные операции записи. Продолжить?':
     '🧨 The mutation scan will create a test record (api_mut_*) in EVERY eligible module, update and delete it.\nNo foreign data is touched, but real write operations will hit the server. Continue?',
