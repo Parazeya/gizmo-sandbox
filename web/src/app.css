@@ -1,0 +1,117 @@
+/* Тёмная тема симулятора — общие переменные и утилиты */
+:root {
+  --bg: #0d1117; --panel: #161b22; --line: #21262d; --text: #e6edf3; --dim: #8b949e;
+  --green: #3fb950; --amber: #d29922; --blue: #58a6ff; --red: #f85149; --pink: #e85aad;
+}
+* { box-sizing: border-box; margin: 0; }
+html, body, #app { height: 100%; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, 'Segoe UI', sans-serif;
+}
+button { font: inherit; }
+
+.btn {
+  background: var(--panel); border: 1px solid var(--line); color: var(--text);
+  border-radius: 8px; padding: 6px 14px; font-size: 13px; cursor: pointer;
+  text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+  transition: border-color .15s;
+}
+.btn:hover { border-color: var(--blue); }
+.btn.primary { background: rgba(88,166,255,.15); border-color: var(--blue); color: var(--blue); font-weight: 600; }
+.btn.on { border-color: var(--blue); color: var(--blue); background: rgba(88,166,255,.12); }
+
+.panel {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px;
+}
+.panel h2 {
+  font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--dim); margin-bottom: 10px;
+}
+
+.chip { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; font-size: 13px; }
+.chip b { color: var(--blue); }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #2c333d; border-radius: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ═══ Тема Terraria: дерево, пиксельный шрифт, зелёные акценты ═══ */
+[data-theme='terraria'] {
+  --bg: #1f2a17; --panel: #4b3620; --line: #241708; --text: #fce8b0; --dim: #c9b287;
+  --green: #6abe30; --amber: #ffd24a; --blue: #7ecdea; --red: #e14b3b; --pink: #e78fd0;
+}
+[data-theme='terraria'] body { background:
+  linear-gradient(rgba(20, 28, 14, 0.88), rgba(20, 28, 14, 0.88)),
+  repeating-linear-gradient(45deg, #26331b 0 14px, #223017 14px 28px); }
+[data-theme='terraria'] h1, [data-theme='terraria'] .tab, [data-theme='terraria'] .btn {
+  font-family: 'Press Start 2P', monospace !important; font-size: 10px !important; line-height: 1.6; }
+[data-theme='terraria'] h1 { font-size: 13px !important; text-shadow: 2px 2px 0 #241708; }
+[data-theme='terraria'] .btn { background: #6c4a2f; border: 2px solid #241708; border-radius: 4px;
+  box-shadow: inset 0 2px 0 #8a6642, inset 0 -2px 0 #503421, 2px 2px 0 rgba(0, 0, 0, 0.4); color: #fce8b0; }
+[data-theme='terraria'] .btn:hover { background: #7d5636; border-color: #241708; }
+[data-theme='terraria'] .btn.primary, [data-theme='terraria'] .btn.on { background: #4e7a24; color: #eaffd0; box-shadow: inset 0 2px 0 #6abe30, 2px 2px 0 rgba(0,0,0,.4); }
+[data-theme='terraria'] .panel, [data-theme='terraria'] .chip {
+  background: rgba(75, 54, 32, 0.92); border: 2px solid #241708; border-radius: 6px;
+  box-shadow: inset 0 2px 0 rgba(160, 120, 70, 0.4), 3px 3px 0 rgba(0, 0, 0, 0.35); }
+[data-theme='terraria'] .chip b { color: var(--amber); }
+[data-theme='terraria'] :is(.tabs) { background: #4b3620 !important; border: 2px solid #241708 !important; }
+[data-theme='terraria'] :is(.tab[data-state='active']) { background: #4e7a24 !important; color: #eaffd0 !important; }
+
+/* ═══ Тема Doom Eternal: тёмный олив + ядовитый акцент (сменный), рубленые плашки, Russo One ═══
+   Вся палитра выводится из --accent через color-mix → смена акцента перетинтовывает тему целиком. */
+[data-theme='doom'] {
+  --accent: #9fb800;
+  --bg: color-mix(in srgb, var(--accent) 4%, #070707);
+  --panel: color-mix(in srgb, var(--accent) 6%, #0b0b0b);
+  --line: color-mix(in srgb, var(--accent) 28%, #14140d);
+  --text: color-mix(in srgb, var(--accent) 12%, #e8e8e2);
+  --dim: color-mix(in srgb, var(--accent) 22%, #82827a);
+  --green: #9fc23c; --amber: #ffb020; --blue: #37d6e8; --red: #ff3b2f; --pink: #ff5e78;
+}
+[data-theme='doom'] { --busy: var(--accent); }
+[data-theme='doom'][data-accent='white'] { --accent: #d8d8d8; }
+[data-theme='doom'][data-accent='red']   { --accent: #e0392e; }
+[data-theme='doom'][data-accent='blue']  { --accent: #4a6dff; }
+[data-theme='doom'][data-accent='cyan']  { --accent: #33bfd0; }
+[data-theme='doom'] body {
+  background:
+    radial-gradient(1100px 560px at 50% -12%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 70%),
+    repeating-linear-gradient(60deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 13px),
+    repeating-linear-gradient(-60deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 13px),
+    var(--bg);
+}
+/* Russo One только на заголовках/кнопках/вкладках — в мелком тексте буквы слипаются */
+[data-theme='doom'] h1, [data-theme='doom'] .tab, [data-theme='doom'] .btn, [data-theme='doom'] .panel h2 {
+  font-family: 'Russo One', 'Segoe UI', sans-serif;
+  text-transform: uppercase; letter-spacing: 0.09em; font-weight: 400; }
+[data-theme='doom'] h1 { color: var(--accent);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 35%, transparent); }
+[data-theme='doom'] .btn {
+  background: linear-gradient(color-mix(in srgb, var(--accent) 10%, #101010), color-mix(in srgb, var(--accent) 5%, #0a0a0a));
+  border: 1px solid var(--line); border-radius: 0;
+  clip-path: polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%);
+  padding: 7px 20px; font-size: 11px; }
+[data-theme='doom'] .btn:hover { border-color: var(--accent); color: var(--accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 30%, transparent) inset; }
+[data-theme='doom'] .btn.primary, [data-theme='doom'] .btn.on {
+  background: var(--accent); border-color: var(--accent); color: #0c0c05; font-weight: 400;
+  text-shadow: none; box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 30%, transparent); }
+[data-theme='doom'] .panel {
+  background: linear-gradient(color-mix(in srgb, var(--accent) 11%, #0c0c0c), color-mix(in srgb, var(--accent) 6%, #090909));
+  border: 1px solid var(--line); border-radius: 0;
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  box-shadow: inset 0 0 34px rgba(0, 0, 0, 0.55); }
+[data-theme='doom'] .panel h2 { color: var(--accent); }
+[data-theme='doom'] .chip { border-radius: 0; clip-path: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%); }
+/* жирный текст — почти белый с лёгким тоном акцента, иначе трудно читается на тёмном оливе */
+[data-theme='doom'] b, [data-theme='doom'] strong {
+  font-weight: 600; color: color-mix(in srgb, var(--accent) 22%, #f2f2ec); }
+[data-theme='doom'] .chip b { color: color-mix(in srgb, var(--accent) 45%, #f2f2ec); }
+[data-theme='doom'] :is(.tabs) { border-radius: 0 !important; border-color: var(--line) !important;
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); padding: 3px 8px !important; }
+[data-theme='doom'] :is(.tab) { border-radius: 0 !important;
+  clip-path: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%); }
+[data-theme='doom'] :is(.tab[data-state='active']) { background: var(--accent) !important; color: #0c0c05 !important; }
+[data-theme='doom'] ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent) 35%, #1a1a12); }

@@ -1,0 +1,21 @@
+{
+  "name": "ggbook-club-simulator",
+  "version": "1.0.0",
+  "description": "Симулятор живого клуба для тестового Gizmo-сервера: виртуальные игроки, сессии, заказы, депозиты, брони, ассеты, запуски приложений",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "calm": "node index.js --players 5 --tick 8",
+    "rush": "node index.js --players 15 --tick 8 --speed 2",
+    "build:web": "cd web && npm install && npx vite build"
+  },
+  "dependencies": {
+    "gizmovsky": "^1.2.1",
+    "mssql": "^11.0.1"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}
