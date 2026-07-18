@@ -200,7 +200,12 @@ export async function loadWorld(log) {
   await seedBarCatalog(log)
   const productsRes = await gapi.v3.products.getProducts({ paginationLimit: -1, isDeleted: false })
   const products = data(productsRes).filter(p => !p.disallowClientOrder)
-  world.barProducts = products.filter(p => !p.timeProduct && p.productType !== 1)
+  // В бар-пул берём ТОЛЬКО настоящие товары (productType 0), с положительной ценой
+  // и без служебных имён от сканов API (api_scan_*/api_mut_*) — иначе бот закажет
+  // фейковый товар за $0, а нулевой заказ невозможно оплатить и завершить (виснет).
+  const isTestProduct = (p) => /^api_(scan|mut)_/i.test(p.name || '')
+  world.barProducts = products.filter(p =>
+    p.productType === 0 && Number(p.price) > 0 && !isTestProduct(p))
   world.timeProducts = products.filter(p => p.timeProduct || p.productType === 1)
   log(`товаров: бар ${world.barProducts.length}, время ${world.timeProducts.length}`)
 

@@ -577,60 +577,85 @@ export async function voidSale(log, force = false) {
  * клиент «платит наличными на стойке». Заказ, который не оплатился и так,
  * после трёх попыток отменяется — как сделал бы живой оператор.
  */
-const orderPayFails = new Map() // orderId → число неудачных попыток оплаты
+const orderPayFails = new Map() // orderId → число неудачных попыток завершить
+const orderAccepted = new Set() // заказы, уже принятые в работу (чтобы «взял» логировать один раз)
 
+// Жизненный цикл заказа Gizmo (проверено на v3.0.81): статус детали
+//   4 = новый/ожидает → (process=принять) → (оплата остатка) → 3 = оплачен
+//   → (delivered) → (complete) → 1 = завершён и УХОДИТ из активных.
+// Список /active даёт свой сводный статус (0=новый,1=готовится) — годится ТОЛЬКО
+// для отображения очереди, но НЕ для управления: завершаем по явным шагам.
+// Пустой заказ (total 0 — например фейковый тест-товар) завершить нельзя → отмена.
 export async function sweepOrders(log) {
   const res = await gapi.v3.productOrders.getProductOrdersActive({ paginationLimit: -1 }).catch(() => null)
   const orders = data(res)
   world.ordersQueue = orders.map(o => ({ id: o.orderId, status: o.status, createdTime: o.createdTime, userId: o.userId }))
-  if (!orders.length) { orderPayFails.clear(); return }
+  if (!orders.length) { orderPayFails.clear(); orderAccepted.clear(); return }
+
+  const liveIds = new Set(orders.map(o => o.orderId))
+  for (const id of orderAccepted) if (!liveIds.has(id)) orderAccepted.delete(id)
 
   const prepMs = mins(randBetween(config.operator.orderPrepMinutes))
   for (const o of orders) {
+    const oid = o.orderId
     const age = Date.now() - new Date(o.createdTime).getTime()
     try {
-      if (o.status === 0) {
-        // Новый заказ — сразу берём в работу («принят, готовим»).
-        await gapi.v3.productOrders.putProductOrdersByIdProcess(o.orderId)
-        log(`👨‍🍳 оператор взял заказ #${o.orderId} в работу`)
-      } else if (o.status === 1 && age > prepMs) {
-        const full = model(await gapi.v3.productOrders.getProductOrdersById(o.orderId))
-        const outstanding = Number(full?.outstanding ?? 0)
-        if (outstanding > 0) {
-          const preferred = full?.preferredPaymentMethodId ?? -3
-          try {
-            await gapi.v3.productOrders.postProductOrdersByIdPayments(o.orderId, {
-              payments: [{ paymentMethodId: preferred, amount: outstanding }],
-              disableReceiptPrinting: true,
-            })
-          } catch (err) {
-            const msg = err?.response?.data?.message ?? err.message ?? ''
-            if (!/DepositException/.test(msg) || preferred === -1) throw err
-            // На депозите пусто — клиент расплачивается на стойке (нал/карта).
-            const pm = pickPay()
-            await gapi.v3.productOrders.postProductOrdersByIdPayments(o.orderId, {
-              payments: [{ paymentMethodId: pm.id, amount: outstanding }],
-              disableReceiptPrinting: true,
-            })
-            log(`💸 заказ #${o.orderId}: на балансе пусто — клиент заплатил (${pm.label})`)
-          }
-        }
-        await gapi.v3.productOrders.putProductOrdersByIdComplete(o.orderId).catch(() => {})
-        await gapi.v3.productOrders.putProductOrdersByIdDelivered(o.orderId).catch(() => {})
-        orderPayFails.delete(o.orderId)
-        world.revenue += outstanding
-        log(`✅ оператор выдал заказ #${o.orderId}`)
+      // Принять в работу один раз, как только увидели заказ («готовим»).
+      if (!orderAccepted.has(oid)) {
+        await gapi.v3.productOrders.putProductOrdersByIdProcess(oid).catch(() => {})
+        orderAccepted.add(oid)
+        log(`👨‍🍳 оператор взял заказ #${oid} в работу`)
       }
+      if (age < prepMs) continue // ещё готовится — ждём
+
+      const full = model(await gapi.v3.productOrders.getProductOrdersById(oid))
+      const total = Number(full?.total ?? 0)
+      const outstanding = Number(full?.outstanding ?? 0)
+
+      // Пустой заказ (нет позиций/нулевая сумма) завершить невозможно — отменяем.
+      if (total <= 0) {
+        await gapi.v3.productOrders.putProductOrdersByIdCancel(oid).catch(() => {})
+        orderPayFails.delete(oid); orderAccepted.delete(oid)
+        log(`🚫 оператор отменил пустой заказ #${oid}`)
+        continue
+      }
+
+      // Оплата остатка: сперва с депозита игрока, при пустом депозите — нал/карта.
+      if (outstanding > 0) {
+        const preferred = full?.preferredPaymentMethodId ?? -3
+        try {
+          await gapi.v3.productOrders.postProductOrdersByIdPayments(oid, {
+            payments: [{ paymentMethodId: preferred, amount: outstanding }],
+            disableReceiptPrinting: true,
+          })
+        } catch (err) {
+          const msg = err?.response?.data?.message ?? err.message ?? ''
+          if (!/DepositException/.test(msg) || preferred === -1) throw err
+          const pm = pickPay()
+          await gapi.v3.productOrders.postProductOrdersByIdPayments(oid, {
+            payments: [{ paymentMethodId: pm.id, amount: outstanding }],
+            disableReceiptPrinting: true,
+          })
+          log(`💸 заказ #${oid}: на балансе пусто — клиент заплатил (${pm.label})`)
+        }
+      }
+
+      // Выдать позиции и завершить. «Выдал» логируем и выручку считаем ТОЛЬКО
+      // если complete реально прошёл (иначе заказ остался бы висеть в очереди).
+      await gapi.v3.productOrders.putProductOrdersByIdDelivered(oid).catch(() => {})
+      await gapi.v3.productOrders.putProductOrdersByIdComplete(oid)
+      orderPayFails.delete(oid); orderAccepted.delete(oid)
+      world.revenue += total
+      log(`✅ оператор выдал заказ #${oid}`)
     } catch (err) {
-      const fails = (orderPayFails.get(o.orderId) ?? 0) + 1
-      orderPayFails.set(o.orderId, fails)
+      const fails = (orderPayFails.get(oid) ?? 0) + 1
+      orderPayFails.set(oid, fails)
       if (fails >= 3) {
-        await gapi.v3.productOrders.putProductOrdersByIdCancel(o.orderId).catch(() => {})
-        orderPayFails.delete(o.orderId)
-        log(`🚫 оператор отменил заказ #${o.orderId} — оплата не прошла ${fails} раза`)
+        await gapi.v3.productOrders.putProductOrdersByIdCancel(oid).catch(() => {})
+        orderPayFails.delete(oid); orderAccepted.delete(oid)
+        log(`🚫 оператор отменил заказ #${oid} — не удалось завершить ${fails} раза`)
       } else if (fails === 1) {
-        // Логируем проблему один раз, а не каждый тик по всей очереди.
-        log(`⚠ заказ #${o.orderId}: ${err?.response?.data?.message ?? err.message}`)
+        log(`⚠ заказ #${oid}: ${err?.response?.data?.message ?? err.message}`)
       }
     }
   }

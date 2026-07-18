@@ -140,14 +140,15 @@ async function ensureFixtures(samples) {
   if (samples.stockProductId == null && samples.productGroupId != null) {
     const r = await safe(() => gapi.v3.products.postProducts({
       productType: 0, productGroupId: samples.productGroupId, name: 'api_scan_stock',
-      price: 1, purchaseOptions: 0, enableStock: true,
+      price: 1, purchaseOptions: 0, enableStock: true, disallowClientOrder: true,
     }))
     if (idOf(r)) { samples.stockProductId = idOf(r); created.push('товар с остатком') }
   }
   if (samples.bundleProductId == null && samples.productGroupId != null) {
     const r = await safe(() => gapi.v3.products.postProducts({
+      // disallowClientOrder — чтобы боты не заказали тест-товар (иначе $0-заказ виснет)
       productType: 2, productGroupId: samples.productGroupId, name: 'api_scan_bundle',
-      price: 1, purchaseOptions: 0, bundle: {},   // поле Bundle обязательно для типа 2
+      price: 1, purchaseOptions: 0, bundle: {}, disallowClientOrder: true,
     }))
     if (idOf(r)) { samples.bundleProductId = idOf(r); created.push('bundle-продукт') }
   }

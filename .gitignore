@@ -1,23 +1,12 @@
-# Локальная конфигурация — содержит адрес и креды ВАШЕГО сервера, не коммитить!
 sim.config.json
-
-# Логи процесса
 *.log
 sim.err.log
-
-# Отчёты сканов API (локальные результаты вашего стенда)
 apitest-reports/
-
-# Лок-файлы не коммитим (решение проекта)
 package-lock.json
 web/package-lock.json
-
-# Зависимости и сборки
 node_modules/
 web/node_modules/
 web/dist/
-
-# Разное
 .DS_Store
 Thumbs.db
 .vscode/
