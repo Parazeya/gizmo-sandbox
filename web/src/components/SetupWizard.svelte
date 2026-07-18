@@ -67,7 +67,7 @@
       <button class="lbtn" class:on={i18n.lang === 'ru'} onclick={() => setLang('ru')}>🇷🇺 Русский</button>
       <button class="lbtn" class:on={i18n.lang === 'en'} onclick={() => setLang('en')}>🇬🇧 English</button>
     </div>
-    <h1>{t('👋 Первый запуск GGBook Club Simulator')}</h1>
+    <h1>{t('👋 Первый запуск Gizmo Sandbox')}</h1>
     <div class="steps">
       {#each ['Подключение', 'Режим работы', 'Тема интерфейса'] as s, i}
         <span class="chip-step" class:on={step === i + 1} class:done={step > i + 1}>{i + 1}. {t(s)}</span>

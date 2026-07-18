@@ -1,5 +1,5 @@
 {
-  "name": "ggbook-club-simulator",
+  "name": "gizmo-sandbox",
   "version": "1.0.0",
   "description": "Living e-sports club simulator + API test bench for Gizmo V3: virtual players with personas (sessions, bar orders, deposits, reservations, assets, app launches), a pixel-art live club map, and full Gizmo V3 API testing — GET catalog scan, safe create-update-delete mutation cycles, request inspector, cross-version report and OpenAPI doc diffs",
   "type": "module",

@@ -282,7 +282,7 @@ const PAGE = /* html */ `<!doctype html>
 <html lang="ru"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GGBook Club Simulator</title>
+<title>Gizmo Sandbox</title>
 <style>
   :root { --bg:#0d1117; --panel:#161b22; --line:#21262d; --text:#e6edf3; --dim:#8b949e;
           --green:#3fb950; --amber:#d29922; --blue:#58a6ff; --red:#f85149; }
@@ -341,7 +341,7 @@ const PAGE = /* html */ `<!doctype html>
   #cfgmsg { font-size:13px; margin-left:10px; }
 </style></head><body>
 <header>
-  <h1>🎮 GGBook Club Simulator</h1>
+  <h1>🎮 Gizmo Sandbox</h1>
   <span class="meta" id="meta">подключение…</span>
   <span style="margin-left:auto; display:flex; gap:6px; flex-wrap:wrap">
     <a class="btn" href="/club" style="text-decoration:none">🕹 Вид сверху</a>
@@ -943,7 +943,7 @@ function drawProps(t) {
   // неоновая вывеска над залом
   ctx.textAlign = 'center'; ctx.font = 'bold 15px system-ui'
   ctx.shadowColor = '#58a6ff'; ctx.shadowBlur = 10
-  ctx.fillStyle = '#7cc0ff'; ctx.fillText('GGBOOK', 250, 46)
+  ctx.fillStyle = '#7cc0ff'; ctx.fillText('GIZMO', 250, 46)
   ctx.shadowBlur = 0; ctx.textAlign = 'left'
   // торговый автомат у стены зала
   drawVending(494, 320, t)

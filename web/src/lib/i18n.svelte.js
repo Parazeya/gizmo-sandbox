@@ -32,7 +32,7 @@ const EN = {
   '🍔 Заказ бара': '🍔 Bar order', '🏆 Турнир': '🏆 Tournament', '💵 Пополнение': '💵 Top-up',
   '🧾 Продажа на кассе': '🧾 Register sale', '💬 Жизнь': '💬 Life event',
   // Визард
-  '👋 Первый запуск GGBook Club Simulator': '👋 First run of GGBook Club Simulator',
+  '👋 Первый запуск Gizmo Sandbox': '👋 First run of Gizmo Sandbox',
   'Подключение': 'Connection', 'Режим работы': 'Mode', 'Тема интерфейса': 'UI theme',
   'Загрузка…': 'Loading…',
   'Куда подключаемся. Всё можно поменять позже в ⚙ Настройках.': 'Where to connect. Everything can be changed later in ⚙ Settings.',
@@ -102,6 +102,14 @@ const EN = {
   'Удалить': 'Delete', 'Удалить ВСЕ сохранённые отчёты сканов? (API-доки spec_*.json останутся)': 'Delete ALL saved scan reports? (API docs spec_*.json will remain)',
   '🧨 Скан мутаций создаст в КАЖДОМ подходящем модуле тестовую запись (api_mut_*), обновит и удалит её.\nЧужие данные не трогаются, но на сервере будут реальные операции записи. Продолжить?':
     '🧨 The mutation scan will create a test record (api_mut_*) in EVERY eligible module, update and delete it.\nNo foreign data is touched, but real write operations will hit the server. Continue?',
+  // Scenario test groups (server-side group keys)
+  'Справочники': 'Reference data', 'Сессии': 'Sessions', 'Деньги': 'Money', 'Заказы': 'Orders',
+  'Брони': 'Reservations', 'Смена': 'Shift', 'Отчёты': 'Reports', 'SQL': 'SQL',
+  'Не удалось загрузить:': 'Upload failed:', 'созданы недостающие фикстуры:': 'created missing fixtures:',
+  'host-API проверены через подключённый хост': 'host API checked via a connected host',
+  'host-эндпоинтов помечены пропуском': 'host endpoints marked as skipped',
+  "Для каждого модуля с парой POST+DELETE создаётся тестовая запись (тело — из схемы OpenAPI), обновляется PUT'ом и удаляется. Чужие данные не трогаются; системные модули (кассы, смены, платежи, сессии, пользователи, хосты) исключены — их покрывают сценарные тесты.":
+    "For every module with a POST+DELETE pair a test record is created (body from the OpenAPI schema), updated with PUT and deleted. No foreign data is touched; system modules (registers, shifts, payments, sessions, users, hosts) are excluded — scenario tests cover them.",
   // ReportsPanel / Settings
   'реальное время': 'real time', 'Занятость клуба': 'Club occupancy', 'Касса за сеанс': 'Session revenue',
   'Очередь заказов бара': 'Bar order queue', 'Сервис (всего за сеанс)': 'Service (session total)',

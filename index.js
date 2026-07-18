@@ -1,4 +1,4 @@
-// Симулятор живого клуба для тестового Gizmo-сервера GGBook.
+// Living club simulator for a test Gizmo server (Gizmo Sandbox).
 //
 //   node index.js --players 8 --tick 10 --speed 1
 //
@@ -161,7 +161,7 @@ process.on('SIGINT', shutdown)
 process.on('SIGTERM', shutdown)
 
 console.log('══════════════════════════════════════════════')
-console.log('  GGBook Club Simulator')
+console.log('  Gizmo Sandbox')
 console.log(`  Gizmo: ${config.gizmo.ip}:${config.gizmo.port} · бренч ${config.branchId}`)
 console.log(`  Игроков: ${config.players} · тик: ${config.tickSeconds}с · скорость ×${config.speed} · SQL(AppStat): ${sqlEnabled() ? 'вкл' : 'выкл'}`)
 console.log('══════════════════════════════════════════════')

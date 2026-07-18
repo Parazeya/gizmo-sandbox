@@ -73,7 +73,7 @@
 
 <div class="app">
   <header>
-    <h1>🎮 GGBook Club Simulator</h1>
+    <h1>🎮 Gizmo Sandbox</h1>
     <span class="meta">{meta}</span>
 
     <Tabs.Root bind:value={tab}>

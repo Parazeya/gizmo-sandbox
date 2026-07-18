@@ -1,5 +1,5 @@
 <script>
-  import { t } from '../lib/i18n.svelte.js'
+  import { t, i18n } from '../lib/i18n.svelte.js'
   // Тестирование Gizmo API: сценарные тесты (реальные вызовы с самоочисткой),
   // полный скан всех эндпоинтов V3 из живого OpenAPI-дока сервера с сохранением
   // отчёта, и сравнение отчётов между версиями Gizmo (added/removed/changed).
@@ -32,7 +32,7 @@
     if (!f) return
     const content = await f.text()
     const r = await fetch('/api/tests/specs/upload', { method: 'POST', body: JSON.stringify({ name: f.name, content }) }).then((r) => r.json()).catch(() => null)
-    if (r?.error) alert('Не удалось загрузить: ' + r.error)
+    if (r?.error) alert(t('Не удалось загрузить:') + ' ' + r.error)
     e.currentTarget.value = ''
     loadSpecs()
   }
@@ -117,7 +117,7 @@
   })
   const stClass = (s) => (s === 'ok' ? 'ok' : s === 'fail' ? 'bad' : s === 'http-4xx' || s === 'auth' ? 'warn' : s === 'dep' ? 'dep' : 'mut')
   const stIcon = (s) => (s === 'ok' ? '✓' : s === 'fail' ? '✗' : s === 'dep' ? '◌' : s === 'stream' ? '≋' : s === 'skip' ? '⊘' : '!')
-  const fmtDate = (ms) => new Date(ms).toLocaleString('ru-RU')
+  const fmtDate = (ms) => new Date(ms).toLocaleString(i18n.lang === 'en' ? 'en-GB' : 'ru-RU')
   const prettyBody = (b) => {
     if (b == null) return '—'
     try { return JSON.stringify(JSON.parse(b), null, 2) } catch { return String(b) }
@@ -171,7 +171,7 @@
     </div>
     {#if report}
       {#each groups as g}
-        <div class="grp">{g}</div>
+        <div class="grp">{t(g)}</div>
         {#each results.filter((r) => r.group === g) as r}
           <div class="row" class:fail={r.ok === false} class:skip={r.ok === 'skip'}>
             <span class="st">{icon(r.ok)}</span><span class="name">{r.name}</span>
@@ -197,12 +197,12 @@
         {t('мутаций')} {scan.mutation} · {t('юзерских')} {scan.userScope ?? 0} · {t('без образца')} {scan.needsParams} · stream {scan.stream ?? 0}
       </div>
       {#if scan.fixtures?.length}
-        <div class="dim" style="font-size:12px; margin-bottom:4px">🛠 созданы недостающие фикстуры: {scan.fixtures.join(', ')}</div>
+        <div class="dim" style="font-size:12px; margin-bottom:4px">🛠 {t('созданы недостающие фикстуры:')} {scan.fixtures.join(', ')}</div>
       {/if}
       {#if scan.scanHostOnline}
-        <div class="dim" style="font-size:12px; margin-bottom:4px">🟢 host-API проверены через подключённый хост «{scan.scanHostName}»</div>
+        <div class="dim" style="font-size:12px; margin-bottom:4px">🟢 {t('host-API проверены через подключённый хост')} «{scan.scanHostName}»</div>
       {:else if scan.scanHostNote}
-        <div class="hostnote">⊘ {scan.scanHostNote}{scan.skipped ? ` — ${scan.skipped} host-эндпоинтов помечены пропуском` : ''}</div>
+        <div class="hostnote">⊘ {scan.scanHostNote}{scan.skipped ? ` — ${scan.skipped} ${t('host-эндпоинтов помечены пропуском')}` : ''}</div>
       {/if}
       <div class="dim" style="font-size:12px; margin-bottom:6px">
         {t('◌ «зависимость» = API работает, но нет нужного состояния на сервере (сущность не создана и т.п.). Клик по строке — полная информация о запросе и ответе.')}
@@ -226,9 +226,7 @@
   <div class="panel">
     <h2>{t('🧨 Скан мутаций (создать → изменить → удалить)')}</h2>
     <p class="dim" style="font-size:12.5px; margin-bottom:8px">
-      Для каждого модуля с парой POST+DELETE создаётся тестовая запись (тело — из схемы OpenAPI),
-      обновляется PUT'ом и удаляется. Чужие данные не трогаются; системные модули (кассы, смены,
-      платежи, сессии, пользователи, хосты) исключены — их покрывают сценарные тесты.
+      {t('Для каждого модуля с парой POST+DELETE создаётся тестовая запись (тело — из схемы OpenAPI), обновляется PUT\'ом и удаляется. Чужие данные не трогаются; системные модули (кассы, смены, платежи, сессии, пользователи, хосты) исключены — их покрывают сценарные тесты.')}
     </p>
     <div class="bar">
       <button class="btn primary" onclick={runMut} disabled={mutating}>{mutating ? t('⏳ Гоняю циклы…') : t('🧨 Запустить скан мутаций')}</button>

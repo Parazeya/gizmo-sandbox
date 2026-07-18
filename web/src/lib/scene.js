@@ -605,7 +605,7 @@ export function createScene(cv) {
     const signC = TH === 'doom' ? ['#ff5a3c', '#ff8a6a'] : TH === 'terraria' ? ['#ffd24a', '#ffe08a'] : ['#58a6ff', '#7cc0ff']
     ctx.textAlign = 'center'; ctx.font = 'bold 15px system-ui'
     ctx.shadowColor = signC[0]; ctx.shadowBlur = 10
-    ctx.fillStyle = signC[1]; ctx.fillText('GGBOOK', 250, 19)
+    ctx.fillStyle = signC[1]; ctx.fillText('GIZMO', 250, 19)
     ctx.shadowBlur = 0; ctx.textAlign = 'left'
     // торговый автомат у стены зала
     drawVending(494, 320, t)

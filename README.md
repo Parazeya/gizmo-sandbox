@@ -1,4 +1,4 @@
-# GGBook Club Simulator
+# Gizmo Sandbox
 
 **English** | [Русский](README.ru.md)
 
@@ -39,6 +39,20 @@ Everything is stored in `sim.config.json` (git-ignored). From then on just `npm 
 > The web UI is available in English and Russian (switchable in the wizard and in the header).
 > The live simulation feed (bot chatter, order comments, personas) is generated in Russian —
 > that's the flavor of the simulated club.
+
+## Screenshots
+
+| Dashboard | Live reports panel |
+|---|---|
+| ![Dashboard](docs/dashboard.png) | ![Reports](docs/reports.png) |
+
+| Top-down view — Terraria theme | Doom theme (players are demons) |
+|---|---|
+| ![Terraria map](docs/map-terraria.png) | ![Doom map](docs/map-doom.png) |
+
+| API Tests | Setup wizard |
+|---|---|
+| ![API tests](docs/api-tests.png) | ![Setup wizard](docs/wizard.png) |
 
 ## Features
 
