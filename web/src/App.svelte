@@ -1,6 +1,7 @@
 <script>
   import { Tabs } from 'bits-ui'
   import { sim, startSim, action, fetchConfig, saveConfig } from './lib/sim.svelte.js'
+  import { t, i18n, setLang } from './lib/i18n.svelte.js'
   import Dashboard from './components/Dashboard.svelte'
   import ClubMap from './components/ClubMap.svelte'
   import ApiTests from './components/ApiTests.svelte'
@@ -23,14 +24,19 @@
   fetchConfig().then((c) => {
     theme = c.uiTheme ?? 'plain'
     accent = c.uiAccent ?? 'green'
+    setLang(c.uiLang ?? 'ru')
     wizard = !c.setupDone
     if (c.setupDone && c.uiMode === 'api') tab = 'tests'
   }).catch(() => {})
+  async function toggleLang() {
+    setLang(i18n.lang === 'ru' ? 'en' : 'ru')
+    await saveConfig({ uiLang: i18n.lang }).catch(() => {})
+  }
   $effect(() => { document.documentElement.dataset.theme = theme })
   $effect(() => { document.documentElement.dataset.accent = accent })
 
   const THEME_ORDER = ['plain', 'terraria', 'doom']
-  const THEME_NAMES = { plain: 'Обычный', terraria: 'Terraria', doom: 'Doom' }
+  const THEME_NAMES = { plain: () => t('Обычный'), terraria: () => 'Terraria', doom: () => 'Doom' }
   // акценты Doom Eternal: ядовитый зелёный по умолчанию, но меняется как в игре
   const ACCENTS = [
     ['green', '#c8e400'], ['white', '#ececec'], ['red', '#ff3b2f'], ['blue', '#4a6dff'], ['cyan', '#35d5e5'],
@@ -45,7 +51,7 @@
   }
 
   async function worldReset() {
-    if (!confirm('♻ Снести тестовый мир и сгенерировать новый?\nВсе боты будут ПОЛНОСТЬЮ удалены со стенда, персоны и планировка комнат станут другими.')) return
+    if (!confirm(t('♻ Снести тестовый мир и сгенерировать новый?\nВсе боты будут ПОЛНОСТЬЮ удалены со стенда, персоны и планировка комнат станут другими.'))) return
     resettingWorld = true
     await fetch('/api/world/reset', { method: 'POST' }).then((r) => r.json()).catch(() => null)
     resettingWorld = false
@@ -54,10 +60,10 @@
   const s = $derived(sim.state)
   const meta = $derived(
     s
-      ? `скорость ×${s.speed} · тик ${s.tickSeconds}с · смена ${s.shift?.id ? '#' + s.shift.id : '—'} · ` +
-        `в клубе ${s.bots.filter((b) => b.hostName).length} из ${s.bots.length}` +
-        (s.paused ? ' · ⏸ ПАУЗА' : '')
-      : 'подключение…',
+      ? `${t('скорость')} ×${s.speed} · ${t('тик')} ${s.tickSeconds}${i18n.lang === 'en' ? 's' : 'с'} · ${t('смена')} ${s.shift?.id ? '#' + s.shift.id : '—'} · ` +
+        `${t('в клубе')} ${s.bots.filter((b) => b.hostName).length} ${t('из')} ${s.bots.length}` +
+        (s.paused ? ` · ⏸ ${t('ПАУЗА')}` : '')
+      : t('подключение…'),
   )
 
   async function togglePause() {
@@ -72,17 +78,18 @@
 
     <Tabs.Root bind:value={tab}>
       <Tabs.List class="tabs">
-        <Tabs.Trigger value="dash" class="tab">Дашборд</Tabs.Trigger>
-        <Tabs.Trigger value="map" class="tab">🕹 Вид сверху</Tabs.Trigger>
-        <Tabs.Trigger value="tests" class="tab">🧪 Тесты API</Tabs.Trigger>
+        <Tabs.Trigger value="dash" class="tab">{t('Дашборд')}</Tabs.Trigger>
+        <Tabs.Trigger value="map" class="tab">{t('🕹 Вид сверху')}</Tabs.Trigger>
+        <Tabs.Trigger value="tests" class="tab">{t('🧪 Тесты API')}</Tabs.Trigger>
       </Tabs.List>
     </Tabs.Root>
 
     <span class="actions">
       <ForceMenu />
-      <button class="btn" class:on={reportsOpen} onclick={() => (reportsOpen = !reportsOpen)}>📊 Отчёты</button>
-      <button class="btn" onclick={togglePause}>{s?.paused ? '▶ Продолжить' : '⏸ Пауза'}</button>
-      <button class="btn" onclick={cycleTheme} title="Сменить тему интерфейса">🎨 {THEME_NAMES[theme]}</button>
+      <button class="btn" class:on={reportsOpen} onclick={() => (reportsOpen = !reportsOpen)}>{t('📊 Отчёты')}</button>
+      <button class="btn" onclick={togglePause}>{s?.paused ? t('▶ Продолжить') : t('⏸ Пауза')}</button>
+      <button class="btn" onclick={toggleLang} title="Language">🌐 {i18n.lang.toUpperCase()}</button>
+      <button class="btn" onclick={cycleTheme} title={t('Сменить тему интерфейса')}>🎨 {THEME_NAMES[theme]()}</button>
       {#if theme === 'doom'}
         <span class="accents" title="Акцентный цвет Doom">
           {#each ACCENTS as [id, color]}
@@ -90,10 +97,10 @@
           {/each}
         </span>
       {/if}
-      <button class="btn" onclick={worldReset} disabled={resettingWorld} title="Снести мир и сгенерировать новый">
-        {resettingWorld ? '⏳ Генерирую…' : '♻ Мир'}
+      <button class="btn" onclick={worldReset} disabled={resettingWorld}>
+        {resettingWorld ? t('⏳ Генерирую…') : t('♻ Мир')}
       </button>
-      <button class="btn" onclick={() => (settingsOpen = true)}>⚙ Настройки</button>
+      <button class="btn" onclick={() => (settingsOpen = true)}>{t('⚙ Настройки')}</button>
     </span>
   </header>
 

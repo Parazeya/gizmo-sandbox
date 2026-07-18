@@ -2,6 +2,7 @@
   // Форс-события — выпадающее меню (bits-ui DropdownMenu)
   import { DropdownMenu } from 'bits-ui'
   import { action } from '../lib/sim.svelte.js'
+  import { t } from '../lib/i18n.svelte.js'
 
   const ITEMS = [
     ['arrive', '🪑 Посадить игрока'],
@@ -16,11 +17,11 @@
 </script>
 
 <DropdownMenu.Root>
-  <DropdownMenu.Trigger class="btn">⚡ События ▾</DropdownMenu.Trigger>
+  <DropdownMenu.Trigger class="btn">{t('⚡ События')} ▾</DropdownMenu.Trigger>
   <DropdownMenu.Portal>
     <DropdownMenu.Content class="dd" sideOffset={6} align="end">
       {#each ITEMS as [name, label]}
-        <DropdownMenu.Item class="dd-item" onSelect={() => action(name)}>{label}</DropdownMenu.Item>
+        <DropdownMenu.Item class="dd-item" onSelect={() => action(name)}>{t(label)}</DropdownMenu.Item>
       {/each}
     </DropdownMenu.Content>
   </DropdownMenu.Portal>

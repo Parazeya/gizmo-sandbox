@@ -3,6 +3,7 @@
   // ⟳ в подписи — параметр применится после перезапуска симулятора.
   import { Dialog } from 'bits-ui'
   import { fetchConfig, saveConfig } from '../lib/sim.svelte.js'
+  import { t } from '../lib/i18n.svelte.js'
 
   let { open = $bindable(false) } = $props()
 
@@ -84,10 +85,10 @@
         <div class="groups">
           {#each SCHEMA as [title, items]}
             <div class="group">
-              <h3>{title}</h3>
+              <h3>{t(title)}</h3>
               {#each items as [path, label, wide]}
                 <label class="row">
-                  <span>{label}</span>
+                  <span>{t(label)}</span>
                   <input
                     class:wide
                     value={getPath(cfg, path) ?? ''}
@@ -99,7 +100,7 @@
           {/each}
         </div>
         <div class="foot">
-          <button class="btn primary" onclick={save}>Сохранить (sim.config.json)</button>
+          <button class="btn primary" onclick={save}>{t('Сохранить')} (sim.config.json)</button>
           <span class="msg" class:ok={msg.startsWith('✓')}>{msg}</span>
         </div>
       {/if}

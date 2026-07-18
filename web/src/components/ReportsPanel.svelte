@@ -2,6 +2,7 @@
   // Немодальная выдвижная панель: отчёты в реальном времени поверх любого вида,
   // страница под ней остаётся полностью интерактивной.
   import { fly } from 'svelte/transition'
+  import { t } from '../lib/i18n.svelte.js'
   import { sim } from '../lib/sim.svelte.js'
   import { drawChart } from '../lib/charts.js'
 
@@ -41,33 +42,33 @@
 {#if open}
   <aside transition:fly={{ x: 480, duration: 220 }}>
     <div class="head">
-      <b>📊 Отчёты · реальное время</b>
+      <b>{t('📊 Отчёты')} · {t('реальное время')}</b>
       {#if last}<span class="m">{new Date(last.t).toLocaleTimeString('ru-RU')}</span>{/if}
       <button class="x" onclick={() => (open = false)} title="Закрыть">×</button>
     </div>
     <div class="rng">
       {#each [1, 5, 15] as m}
-        <button class="btn" class:on={range === m} onclick={() => (range = m)}>{m} мин</button>
+        <button class="btn" class:on={range === m} onclick={() => (range = m)}>{m} {t('мин')}</button>
       {/each}
     </div>
 
     <div class="card">
-      <h4>Занятость клуба</h4>
+      <h4>{t('Занятость клуба')}</h4>
       <div class="v" style="color:var(--green)">{last ? `${last.seated} из ${last.bots} за хостами` : '—'}</div>
       <canvas bind:this={c1}></canvas>
     </div>
     <div class="card">
-      <h4>Касса за сеанс</h4>
+      <h4>{t('Касса за сеанс')}</h4>
       <div class="v" style="color:var(--amber)">{last ? last.revenue.toLocaleString('ru-RU') + ' ₽' : '—'}</div>
       <canvas bind:this={c2}></canvas>
     </div>
     <div class="card">
-      <h4>Очередь заказов бара</h4>
+      <h4>{t('Очередь заказов бара')}</h4>
       <div class="v" style="color:var(--blue)">{last ? last.queue + ' в очереди' : '—'}</div>
       <canvas bind:this={c3}></canvas>
     </div>
     <div class="card">
-      <h4>Сервис (всего за сеанс)</h4>
+      <h4>{t('Сервис (всего за сеанс)')}</h4>
       <div class="lg">
         <span><i style="background:var(--green)"></i>выдано</span>
         <span><i style="background:var(--pink)"></i>касса</span>

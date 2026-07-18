@@ -1,5 +1,6 @@
 <script>
   import { sim } from '../lib/sim.svelte.js'
+  import { t } from '../lib/i18n.svelte.js'
 
   const s = $derived(sim.state)
   const TRAIT_EMO = { задрот: '🎧', казуал: '🙂', гурман: '🍕', молчун: '🤐', залётный: '🌪', стример: '📹' }
@@ -7,11 +8,11 @@
   const chips = $derived(
     s
       ? [
-          ['💰 касса за сеанс', Math.round(s.revenue)],
-          ['🪑 посадок', s.stats.arrive], ['👥 компаний', s.stats.group], ['🍔 заказов', s.stats.order],
-          ['✅ выдано', s.stats.delivered], ['🧾 продаж на кассе', s.stats.sale], ['💵 пополнений', s.stats.deposit],
-          ['⏱ пакетов времени', s.stats.buyTime], ['📅 броней', s.stats.reserve], ['🎮 игр', s.stats.appSession],
-          ['🏆 турниров', s.stats.tournament], ['🚪 уходов', s.stats.leave], ['📝 регистраций', s.stats.newcomer],
+          ['💰 ' + t('касса за сеанс'), Math.round(s.revenue)],
+          ['🪑 ' + t('посадок'), s.stats.arrive], ['👥 ' + t('компаний'), s.stats.group], ['🍔 ' + t('заказов'), s.stats.order],
+          ['✅ ' + t('выдано'), s.stats.delivered], ['🧾 ' + t('продаж на кассе'), s.stats.sale], ['💵 ' + t('пополнений'), s.stats.deposit],
+          ['⏱ ' + t('пакетов времени'), s.stats.buyTime], ['📅 ' + t('броней'), s.stats.reserve], ['🎮 ' + t('игр'), s.stats.appSession],
+          ['🏆 ' + t('турниров'), s.stats.tournament], ['🚪 ' + t('уходов'), s.stats.leave], ['📝 ' + t('регистраций'), s.stats.newcomer],
         ]
       : [],
   )
@@ -25,14 +26,14 @@
 
   const botStatus = (b) =>
     b.hostName
-      ? `🪑 ${b.hostName} · сидит ${b.sittingMin} мин · ещё ~${b.leftMin}`
+      ? `🪑 ${b.hostName} · ${t('сидит')} ${b.sittingMin} ${t('мин')} · ${t('ещё')} ~${b.leftMin}`
       : b.present
-        ? '☕ в клубе, не за хостом'
-        : '🏠 сегодня не придёт'
+        ? '☕ ' + t('в клубе, не за хостом')
+        : '🏠 ' + t('сегодня не придёт')
 </script>
 
 {#if !s}
-  <p class="empty">Подключение к симулятору…</p>
+  <p class="empty">{t('подключение…')}</p>
 {:else}
   <div class="chips">
     {#each chips as [k, v]}<span class="chip">{k}: <b>{v ?? 0}</b></span>{/each}
@@ -41,7 +42,7 @@
   <div class="grid">
     <div class="col">
       <div class="panel">
-        <h2>Хосты</h2>
+        <h2>{t('Хосты')}</h2>
         <div class="hosts">
           {#each s.hosts as h (h.name)}
             {@const who = (h.sitters ?? []).join(', ')}
@@ -57,7 +58,7 @@
       </div>
 
       <div class="panel">
-        <h2>Живая лента</h2>
+        <h2>{t('Живая лента')}</h2>
         <div class="feed" bind:this={feedEl}>
           {#each sim.feed as line}
             <div><span class="t">{line.t}</span>{line.msg}</div>
@@ -68,7 +69,7 @@
 
     <div class="col">
       <div class="panel">
-        <h2>Игроки</h2>
+        <h2>{t('Игроки')}</h2>
         <div class="bots">
           {#each s.bots as b (b.username)}
             <div class="bot" class:seated={b.hostName} class:away={!b.present && !b.hostName}>
@@ -86,16 +87,16 @@
       </div>
 
       <div class="panel">
-        <h2>Очередь заказов</h2>
+        <h2>{t('Очередь заказов')}</h2>
         {#if s.orders.length}
           {#each s.orders as o (o.id)}
             <div class="order">
-              <span class="badge" class:cook={o.status === 1}>{o.status === 0 ? 'новый' : 'готовится'}</span>
-              #{o.id} <span class="dim">{o.ageMin} мин назад</span>
+              <span class="badge" class:cook={o.status === 1}>{o.status === 0 ? t('новый') : t('готовится')}</span>
+              #{o.id} <span class="dim">{o.ageMin} {t('мин')} {t('назад')}</span>
             </div>
           {/each}
         {:else}
-          <p class="empty">очередь пуста — оператор всё разгрёб 👌</p>
+          <p class="empty">{t('очередь пуста — оператор всё разгрёб')} 👌</p>
         {/if}
       </div>
     </div>

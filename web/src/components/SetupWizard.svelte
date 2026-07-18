@@ -2,6 +2,7 @@
   // Мастер первого запуска: подключение (с проверкой связи) → режим → тема.
   // Показывается, пока в конфиге setupDone !== true.
   import { fetchConfig, saveConfig } from '../lib/sim.svelte.js'
+  import { t, i18n, setLang } from '../lib/i18n.svelte.js'
 
   let { onDone } = $props()
 
@@ -36,7 +37,7 @@
 
   async function finish() {
     saving = true
-    await saveConfig({ ...$state.snapshot(cfg), setupDone: true, uiMode, uiTheme, uiAccent })
+    await saveConfig({ ...$state.snapshot(cfg), setupDone: true, uiMode, uiTheme, uiAccent, uiLang: i18n.lang })
     saving = false
     onDone?.({ uiMode, uiTheme, uiAccent })
   }
@@ -62,32 +63,34 @@
 
 <div class="ovl">
   <div class="wiz">
-    <h1>👋 Первый запуск GGBook Club Simulator</h1>
+    <div class="langs">
+      <button class="lbtn" class:on={i18n.lang === 'ru'} onclick={() => setLang('ru')}>🇷🇺 Русский</button>
+      <button class="lbtn" class:on={i18n.lang === 'en'} onclick={() => setLang('en')}>🇬🇧 English</button>
+    </div>
+    <h1>{t('👋 Первый запуск GGBook Club Simulator')}</h1>
     <div class="steps">
       {#each ['Подключение', 'Режим работы', 'Тема интерфейса'] as s, i}
-        <span class="chip-step" class:on={step === i + 1} class:done={step > i + 1}>{i + 1}. {s}</span>
+        <span class="chip-step" class:on={step === i + 1} class:done={step > i + 1}>{i + 1}. {t(s)}</span>
       {/each}
     </div>
 
     {#if step === 1}
       {#if !cfg}
-        <p class="dim">Загрузка…</p>
+        <p class="dim">{t('Загрузка…')}</p>
       {:else}
         <div class="warn">
-          ⚠️ <b>Только тестовый сервер!</b> Симулятор создаёт реальных пользователей,
-          платежи, чеки и кассовые операции, а «♻ Мир» безвозвратно удаляет ботов.
-          На боевом Gizmo это испортит отчёты и кассу.
+          ⚠️ <b>{t('Только тестовый сервер!')}</b> {t('Симулятор создаёт реальных пользователей, платежи, чеки и кассовые операции, а «♻ Мир» безвозвратно удаляет ботов. На боевом Gizmo это испортит отчёты и кассу.')}
         </div>
-        <p class="dim">Куда подключаемся. Всё можно поменять позже в ⚙ Настройках.</p>
+        <p class="dim">{t('Куда подключаемся. Всё можно поменять позже в ⚙ Настройках.')}</p>
         <div class="fields">
           {#each FIELDS as [path, label]}
-            <label><span>{label}</span>
+            <label><span>{t(label)}</span>
               <input value={getPath(cfg, path) ?? ''} onchange={(e) => onInput(path, e.currentTarget.value.trim())} />
             </label>
           {/each}
         </div>
         <div class="row-btns">
-          <button class="btn" onclick={doCheck} disabled={checking}>{checking ? '⏳ Проверяю…' : '🔌 Проверить связь'}</button>
+          <button class="btn" onclick={doCheck} disabled={checking}>{checking ? t('⏳ Проверяю…') : t('🔌 Проверить связь')}</button>
           {#if check}
             <span class="chk">{stIcon(check.gizmo?.ok)} Gizmo: {check.gizmo?.detail}</span>
             <span class="chk">{stIcon(check.sql?.ok)} SQL: {check.sql?.detail}</span>
@@ -95,50 +98,50 @@
         </div>
         <label class="confirm">
           <input type="checkbox" bind:checked={testConfirmed} />
-          <span>Подтверждаю: это <b>тестовый</b> сервер Gizmo, данными на нём можно жертвовать</span>
+          <span>{t('Подтверждаю: это')} <b>{t('тестовый')}</b> {t('сервер Gizmo, данными на нём можно жертвовать')}</span>
         </label>
         <div class="foot">
-          <button class="btn primary" onclick={() => (step = 2)} disabled={!check?.gizmo?.ok || !testConfirmed}>Далее →</button>
-          {#if check && !check.gizmo?.ok}<span class="dim">нужна связь с Gizmo, проверь адрес и креды</span>
-          {:else if check?.gizmo?.ok && !testConfirmed}<span class="dim">отметь галочку про тестовый сервер</span>{/if}
+          <button class="btn primary" onclick={() => (step = 2)} disabled={!check?.gizmo?.ok || !testConfirmed}>{t('Далее →')}</button>
+          {#if check && !check.gizmo?.ok}<span class="dim">{t('нужна связь с Gizmo, проверь адрес и креды')}</span>
+          {:else if check?.gizmo?.ok && !testConfirmed}<span class="dim">{t('отметь галочку про тестовый сервер')}</span>{/if}
         </div>
       {/if}
     {:else if step === 2}
-      <p class="dim">Что будем делать? Обе вкладки доступны всегда — это только стартовый экран.</p>
+      <p class="dim">{t('Что будем делать? Обе вкладки доступны всегда — это только стартовый экран.')}</p>
       <div class="cards">
         {#each MODES as m}
           <button class="card" class:on={uiMode === m.id} onclick={() => (uiMode = m.id)}>
             <span class="ic">{m.icon}</span>
-            <b>{m.title}</b>
-            <span class="desc">{m.desc}</span>
+            <b>{t(m.title)}</b>
+            <span class="desc">{t(m.desc)}</span>
           </button>
         {/each}
       </div>
       <div class="foot">
-        <button class="btn" onclick={() => (step = 1)}>← Назад</button>
-        <button class="btn primary" onclick={() => (step = 3)}>Далее →</button>
+        <button class="btn" onclick={() => (step = 1)}>{t('← Назад')}</button>
+        <button class="btn primary" onclick={() => (step = 3)}>{t('Далее →')}</button>
       </div>
     {:else}
-      <p class="dim">Как будет выглядеть интерфейс (меняется в один клик кнопкой 🎨 в шапке).</p>
+      <p class="dim">{t('Как будет выглядеть интерфейс (меняется в один клик кнопкой 🎨 в шапке).')}</p>
       <div class="cards">
         {#each THEMES as th}
           <button class="card" class:on={uiTheme === th.id} onclick={() => (uiTheme = th.id)}>
             <span class="swatches">{#each th.colors as c}<i style="background:{c}"></i>{/each}</span>
-            <b>{th.title}</b>
+            <b>{th.id === 'plain' ? t('Обычный') : th.title}</b>
           </button>
         {/each}
       </div>
       {#if uiTheme === 'doom'}
         <div class="accent-row">
-          <span class="dim" style="margin:0">Акцентный цвет:</span>
+          <span class="dim" style="margin:0">{t('Акцентный цвет:')}</span>
           {#each ACCENTS as [id, color]}
             <button class="acc" class:on={uiAccent === id} style="--c:{color}" onclick={() => (uiAccent = id)} aria-label={id}></button>
           {/each}
         </div>
       {/if}
       <div class="foot">
-        <button class="btn" onclick={() => (step = 2)}>← Назад</button>
-        <button class="btn primary" onclick={finish} disabled={saving}>{saving ? '⏳' : '🚀 Поехали!'}</button>
+        <button class="btn" onclick={() => (step = 2)}>{t('← Назад')}</button>
+        <button class="btn primary" onclick={finish} disabled={saving}>{saving ? '⏳' : t('🚀 Поехали!')}</button>
       </div>
     {/if}
   </div>
@@ -178,6 +181,10 @@
   .swatches { display: flex; gap: 4px; }
   .swatches i { width: 22px; height: 22px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.15); }
   .foot { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
+  .langs { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 6px; }
+  .lbtn { background: var(--bg); border: 1px solid var(--line); color: var(--dim); border-radius: 8px;
+    padding: 4px 12px; font-size: 12.5px; cursor: pointer; }
+  .lbtn.on { border-color: var(--blue); color: var(--blue); background: rgba(88, 166, 255, 0.1); }
   .accent-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
   .acc { width: 24px; height: 24px; border-radius: 4px; cursor: pointer; background: var(--c);
     border: 2px solid transparent; clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);

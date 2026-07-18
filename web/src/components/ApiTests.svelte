@@ -1,4 +1,5 @@
 <script>
+  import { t } from '../lib/i18n.svelte.js'
   // Тестирование Gizmo API: сценарные тесты (реальные вызовы с самоочисткой),
   // полный скан всех эндпоинтов V3 из живого OpenAPI-дока сервера с сохранением
   // отчёта, и сравнение отчётов между версиями Gizmo (added/removed/changed).
@@ -36,12 +37,12 @@
     loadSpecs()
   }
   async function delFile(file) {
-    if (!confirm(`Удалить ${file}?`)) return
+    if (!confirm(t('Удалить') + ` ${file}?`)) return
     await fetch('/api/tests/reports/delete', { method: 'POST', body: JSON.stringify({ file }) }).catch(() => {})
     loadReports(); loadSpecs()
   }
   async function clearAllReports() {
-    if (!confirm('Удалить ВСЕ сохранённые отчёты сканов? (API-доки spec_*.json останутся)')) return
+    if (!confirm(t('Удалить ВСЕ сохранённые отчёты сканов? (API-доки spec_*.json останутся)'))) return
     await fetch('/api/tests/reports/clear', { method: 'POST' }).catch(() => {})
     diff = null; loadReports()
   }
@@ -137,23 +138,23 @@
     {#if selected === r}
       <div class="inspect">
         {#if r.req}
-          <div class="ih">→ Запрос</div>
+          <div class="ih">{t('→ Запрос')}</div>
           <div class="ikv"><b>{r.req.verb}</b> <span class="mono sel-all">{r.req.url}</span></div>
           {#if r.req.query && Object.keys(r.req.query).length}
-            <div class="ih2">Query-параметры</div>
+            <div class="ih2">{t('Query-параметры')}</div>
             {#each Object.entries(r.req.query) as [k, v]}<div class="ikv mono">{k} = {v}</div>{/each}
           {/if}
-          <div class="ih2">Заголовки запроса</div>
+          <div class="ih2">{t('Заголовки запроса')}</div>
           {#each Object.entries(r.req.headers ?? {}) as [k, v]}<div class="ikv mono">{k}: {v}</div>{/each}
-          <div class="ih2">Тело запроса</div>
-          <pre class="ibody">{r.req.body ?? '— (без тела)'}</pre>
-          <div class="ih">← Ответ {r.res?.code ?? '—'} · {r.ms} мс</div>
-          <div class="ih2">Заголовки ответа</div>
+          <div class="ih2">{t('Тело запроса')}</div>
+          <pre class="ibody">{r.req.body ?? t('— (без тела)')}</pre>
+          <div class="ih">{t('← Ответ')} {r.res?.code ?? '—'} · {r.ms} ms</div>
+          <div class="ih2">{t('Заголовки ответа')}</div>
           {#each Object.entries(r.res?.headers ?? {}) as [k, v]}<div class="ikv mono">{k}: {v}</div>{/each}
-          <div class="ih2">Тело ответа</div>
+          <div class="ih2">{t('Тело ответа')}</div>
           <pre class="ibody">{prettyBody(r.res?.body)}</pre>
         {:else}
-          <div class="dim">Вызов не выполнялся: {r.detail}</div>
+          <div class="dim">{t('Вызов не выполнялся:')} {r.detail}</div>
         {/if}
       </div>
     {/if}
@@ -161,9 +162,9 @@
 
   <!-- ── Сценарные тесты ─────────────────────────────────────────────────── -->
   <div class="panel">
-    <h2>Сценарные тесты (реальные вызовы, самоочистка)</h2>
+    <h2>{t('Сценарные тесты (реальные вызовы, самоочистка)')}</h2>
     <div class="bar">
-      <button class="btn primary" onclick={run} disabled={running}>{running ? '⏳ Прогоняю…' : '▶ Запустить сценарии'}</button>
+      <button class="btn primary" onclick={run} disabled={running}>{running ? t('⏳ Прогоняю…') : t('▶ Запустить сценарии')}</button>
       {#if report}
         <span class="sum"><b class="ok">✓ {passed}</b> <b class="bad" class:zero={!failed}>✗ {failed}</b> <b class="warn">⊘ {skipped}</b> · {fmtDate(report.at)}</span>
       {/if}
@@ -183,17 +184,17 @@
 
   <!-- ── Полный скан V3 ──────────────────────────────────────────────────── -->
   <div class="panel">
-    <h2>Полный скан Gizmo V3 (каталог из OpenAPI-дока сервера)</h2>
+    <h2>{t('Полный скан Gizmo V3 (каталог из OpenAPI-дока сервера)')}</h2>
     <div class="bar">
-      <button class="btn primary" onclick={runScan} disabled={scanning}>{scanning ? '⏳ Сканирую все эндпоинты…' : '▶ Полный скан + сохранить отчёт'}</button>
+      <button class="btn primary" onclick={runScan} disabled={scanning}>{scanning ? t('⏳ Сканирую все эндпоинты…') : t('▶ Полный скан + сохранить отчёт')}</button>
     </div>
     {#if scan}
       <div class="sum" style="margin-bottom:6px">
-        Gizmo <b>{scan.gizmoVersion}</b> · всего {scan.total} ·
+        Gizmo <b>{scan.gizmoVersion}</b> · {t('всего')} {scan.total} ·
         <b class="ok">ok {scan.ok}</b> <b class="bad" class:zero={!scan.fail}>fail {scan.fail}</b>
-        <b class="warn">4xx {scan.http4xx}</b> <b class="dep">◌ зависимости {scan.dep ?? 0}</b>
-        {#if scan.skipped}<b class="warn">⊘ пропущено {scan.skipped}</b>{/if} ·
-        мутаций {scan.mutation} · юзерских {scan.userScope ?? 0} · без образца {scan.needsParams} · stream {scan.stream ?? 0}
+        <b class="warn">4xx {scan.http4xx}</b> <b class="dep">◌ {t('зависимости')} {scan.dep ?? 0}</b>
+        {#if scan.skipped}<b class="warn">⊘ {t('пропущено')} {scan.skipped}</b>{/if} ·
+        {t('мутаций')} {scan.mutation} · {t('юзерских')} {scan.userScope ?? 0} · {t('без образца')} {scan.needsParams} · stream {scan.stream ?? 0}
       </div>
       {#if scan.fixtures?.length}
         <div class="dim" style="font-size:12px; margin-bottom:4px">🛠 созданы недостающие фикстуры: {scan.fixtures.join(', ')}</div>
@@ -204,16 +205,15 @@
         <div class="hostnote">⊘ {scan.scanHostNote}{scan.skipped ? ` — ${scan.skipped} host-эндпоинтов помечены пропуском` : ''}</div>
       {/if}
       <div class="dim" style="font-size:12px; margin-bottom:6px">
-        ◌ «зависимость» = API работает, но нет нужного состояния на сервере (сущность не создана и т.п.).
-        Клик по строке — полная информация о запросе и ответе.
+        {t('◌ «зависимость» = API работает, но нет нужного состояния на сервере (сущность не создана и т.п.). Клик по строке — полная информация о запросе и ответе.')}
       </div>
-      <label class="tgl"><input type="checkbox" bind:checked={showOkModules} /> показывать полностью зелёные модули</label>
+      <label class="tgl"><input type="checkbox" bind:checked={showOkModules} /> {t('показывать полностью зелёные модули')}</label>
       <div class="thead">
-        <span></span><span>Метод и путь</span><span class="ms">Код · время</span><span>Детали</span>
+        <span></span><span>{t('Метод и путь')}</span><span class="ms">{t('Код · время')}</span><span>{t('Детали')}</span>
       </div>
       {#each scanModules as m}
         {#if m.bad.length || m.deps.length || m.skips.length || showOkModules}
-          <div class="grp">{m.module} <span class="dim">— ✓ {m.ok} из {m.ok + m.bad.length + m.deps.length} вызванных GET{m.bad.length ? ` · проблем: ${m.bad.length}` : ''}{m.deps.length ? ` · зависимостей: ${m.deps.length}` : ''}{m.skips.length ? ` · пропущено: ${m.skips.length} (${m.skips[0].detail.replace(/^пропуск: /, '')})` : ''}{m.mut ? ` · мутаций (не вызываются): ${m.mut}` : ''}{m.other ? ` · прочих: ${m.other}` : ''} · всего в доке: {m.total}</span></div>
+          <div class="grp">{m.module} <span class="dim">— ✓ {m.ok} из {m.ok + m.bad.length + m.deps.length} {t('вызванных GET')}{m.bad.length ? ` · ${t('проблем:')} ${m.bad.length}` : ''}{m.deps.length ? ` · ${t('зависимостей:')} ${m.deps.length}` : ''}{m.skips.length ? ` · пропущено: ${m.skips.length} (${m.skips[0].detail.replace(/^пропуск: /, '')})` : ''}{m.mut ? ` · ${t('мутаций (не вызываются):')} ${m.mut}` : ''}{m.other ? ` · ${t('прочих:')} ${m.other}` : ''} · {t('всего в доке:')} {m.total}</span></div>
           {#each (m.bad.length || m.deps.length ? [...m.bad, ...m.deps, ...(showOkModules ? m.skips : [])] : m.skips.length && !showOkModules ? [] : m.rows.filter((r) => r.status === 'ok').slice(0, 3)) as r}
             {@render resRow(r)}
           {/each}
@@ -224,26 +224,26 @@
 
   <!-- ── Скан мутаций (create → update → delete на своих данных) ─────────── -->
   <div class="panel">
-    <h2>🧨 Скан мутаций (создать → изменить → удалить)</h2>
+    <h2>{t('🧨 Скан мутаций (создать → изменить → удалить)')}</h2>
     <p class="dim" style="font-size:12.5px; margin-bottom:8px">
       Для каждого модуля с парой POST+DELETE создаётся тестовая запись (тело — из схемы OpenAPI),
       обновляется PUT'ом и удаляется. Чужие данные не трогаются; системные модули (кассы, смены,
       платежи, сессии, пользователи, хосты) исключены — их покрывают сценарные тесты.
     </p>
     <div class="bar">
-      <button class="btn primary" onclick={runMut} disabled={mutating}>{mutating ? '⏳ Гоняю циклы…' : '🧨 Запустить скан мутаций'}</button>
+      <button class="btn primary" onclick={runMut} disabled={mutating}>{mutating ? t('⏳ Гоняю циклы…') : t('🧨 Запустить скан мутаций')}</button>
       {#if mut && !mut.error}
         <span class="sum">
-          Gizmo <b>{mut.gizmoVersion}</b> · модулей {mut.modules} · вызовов {mut.total} ·
+          Gizmo <b>{mut.gizmoVersion}</b> · {t('модулей')} {mut.modules} · {t('вызовов')} {mut.total} ·
           <b class="ok">ok {mut.ok}</b> <b class="bad" class:zero={!mut.fail}>fail {mut.fail}</b>
-          <b class="warn">4xx {mut.http4xx}</b> <b class="dep">◌ {mut.dep}</b> · пропущено {mut.skipped}
+          <b class="warn">4xx {mut.http4xx}</b> <b class="dep">◌ {mut.dep}</b> · {t('пропущено')} {mut.skipped}
         </span>
       {/if}
     </div>
     {#if mut?.error}<div class="hostnote">⚠ {mut.error}</div>{/if}
     {#if mut && !mut.error}
       {#each mutModules as m}
-        <div class="grp">{m.module}{m.bad ? ' — проблем: ' + m.bad : ''}</div>
+        <div class="grp">{m.module}{m.bad ? ' — ' + t('проблем:') + ' ' + m.bad : ''}</div>
         {#each m.rows as r}
           {@render resRow(r, stepIcon(r.step) + ' ')}
         {/each}
@@ -253,41 +253,41 @@
 
   <!-- ── Сравнение отчётов (версии Gizmo) ────────────────────────────────── -->
   <div class="panel">
-    <h2>Сравнение отчётов между версиями</h2>
+    <h2>{t('Сравнение отчётов между версиями')}</h2>
     {#if reports.length}
       <div class="bar">
-        <select bind:value={diffA} class="sel"><option value="">— старый отчёт —</option>{#each reports as r}<option value={r.file}>{r.gizmoVersion} · {fmtDate(r.at)} (ok {r.ok}/{r.total})</option>{/each}</select>
+        <select bind:value={diffA} class="sel"><option value="">{t('— старый отчёт —')}</option>{#each reports as r}<option value={r.file}>{r.gizmoVersion} · {fmtDate(r.at)} (ok {r.ok}/{r.total})</option>{/each}</select>
         <span class="dim">→</span>
-        <select bind:value={diffB} class="sel"><option value="">— новый отчёт —</option>{#each reports as r}<option value={r.file}>{r.gizmoVersion} · {fmtDate(r.at)} (ok {r.ok}/{r.total})</option>{/each}</select>
-        <button class="btn" onclick={runDiff} disabled={!diffA || !diffB}>Сравнить</button>
-        <span class="dim" style="margin-left:auto">отчётов сохранено: {reports.length}</span>
+        <select bind:value={diffB} class="sel"><option value="">{t('— новый отчёт —')}</option>{#each reports as r}<option value={r.file}>{r.gizmoVersion} · {fmtDate(r.at)} (ok {r.ok}/{r.total})</option>{/each}</select>
+        <button class="btn" onclick={runDiff} disabled={!diffA || !diffB}>{t('Сравнить')}</button>
+        <span class="dim" style="margin-left:auto">{t('отчётов сохранено:')} {reports.length}</span>
       </div>
       {#if diff}
         <div class="sum" style="margin:8px 0">
           {diff.a.gizmoVersion} → {diff.b.gizmoVersion}:
-          <b class="ok">+{diff.added.length} новых</b> ·
-          <b class="bad" class:zero={!diff.removed.length}>−{diff.removed.length} удалённых</b> ·
-          <b class="warn">~{diff.changed.length} изменённых</b>
+          <b class="ok">+{diff.added.length} {t('новых')}</b> ·
+          <b class="bad" class:zero={!diff.removed.length}>−{diff.removed.length} {t('удалённых')}</b> ·
+          <b class="warn">~{diff.changed.length} {t('изменённых')}</b>
         </div>
         {#each diff.added as r}<div class="row"><span class="st ok">+</span><span class="name mono">{r.verb} {r.path}</span><span class="ms"></span><span class="detail">{r.module}</span></div>{/each}
         {#each diff.removed as r}<div class="row fail"><span class="st bad">−</span><span class="name mono">{r.verb} {r.path}</span><span class="ms"></span><span class="detail">{r.module}</span></div>{/each}
         {#each diff.changed as c}
           <div class="row"><span class="st warn">~</span><span class="name mono">{c.key}</span><span class="ms"></span>
-            <span class="detail">{c.before.status}{c.before.httpCode ? ` (${c.before.httpCode})` : ''} → {c.after.status}{c.after.httpCode ? ` (${c.after.httpCode})` : ''}{JSON.stringify(c.before.shape) !== JSON.stringify(c.after.shape) ? ' · форма ответа изменилась' : ''}</span>
+            <span class="detail">{c.before.status}{c.before.httpCode ? ` (${c.before.httpCode})` : ''} → {c.after.status}{c.after.httpCode ? ` (${c.after.httpCode})` : ''}{JSON.stringify(c.before.shape) !== JSON.stringify(c.after.shape) ? ' · ' + t('форма ответа изменилась') : ''}</span>
           </div>
         {/each}
         {#if diff.specDiff}
-          <div class="grp" style="margin-top:14px">Изменения в API-документации ({diff.specDiff.a} → {diff.specDiff.b}):
+          <div class="grp" style="margin-top:14px">{t('Изменения в API-документации')} ({diff.specDiff.a} → {diff.specDiff.b}):
             <span class="dim">+{diff.specDiff.added.length} · −{diff.specDiff.removed.length} · ~{diff.specDiff.changed.length}</span>
           </div>
           {#each diff.specDiff.added as e}
             <div class="row"><span class="st ok">+</span><span class="name mono">{e.key}</span><span class="ms"></span>
-              <span class="detail">параметры: {e.params.join(', ') || '—'}{e.body.length ? ` · тело: ${e.body.join(', ')}` : ''}{e.resp.length ? ` · ответ: ${e.resp.slice(0, 12).join(', ')}` : ''}</span>
+              <span class="detail">{t('параметры:')} {e.params.join(', ') || '—'}{e.body.length ? ` · ${t('тело:')} ${e.body.join(', ')}` : ''}{e.resp.length ? ` · ${t('ответ:')} ${e.resp.slice(0, 12).join(', ')}` : ''}</span>
             </div>
           {/each}
           {#each diff.specDiff.removed as e}
             <div class="row fail"><span class="st bad">−</span><span class="name mono">{e.key}</span><span class="ms"></span>
-              <span class="detail">параметры: {e.params.join(', ') || '—'}</span>
+              <span class="detail">{t('параметры:')} {e.params.join(', ') || '—'}</span>
             </div>
           {/each}
           {#each diff.specDiff.changed as e}
@@ -300,41 +300,41 @@
         {/if}
       {/if}
       <div class="dim" style="margin-top:8px; font-size:12px">
-        Сохранённые отчёты:
+        {t('Сохранённые отчёты:')}
         {#each reports.slice(0, 8) as r}
           <span class="rfile"><button class="lnk" onclick={() => openReport(r.file)}>{r.file}</button><button class="x" title="удалить" onclick={() => delFile(r.file)}>✕</button></span>
         {/each}
-        <button class="lnk" style="color:var(--red)" onclick={clearAllReports}>🗑 очистить все отчёты</button>
+        <button class="lnk" style="color:var(--red)" onclick={clearAllReports}>{t('🗑 очистить все отчёты')}</button>
       </div>
     {:else}
-      <p class="dim">Сохранённых отчётов пока нет — запусти «Полный скан», отчёт сохранится автоматически. После обновления Gizmo запусти ещё раз и сравни.</p>
+      <p class="dim">{t('Сохранённых отчётов пока нет — запусти «Полный скан», отчёт сохранится автоматически. После обновления Gizmo запусти ещё раз и сравни.')}</p>
     {/if}
   </div>
 
   <!-- ── Сравнение API-доков (.json) вручную ─────────────────────────────── -->
   <div class="panel">
-    <h2>Сравнение API-доков (.json)</h2>
+    <h2>{t('Сравнение API-доков (.json)')}</h2>
     <p class="dim" style="font-size:12.5px; margin-bottom:8px">
       Док каждой версии сохраняется при первом скане (spec_&lt;версия&gt;.json). Можно загрузить док другой версии вручную
       (Scalar → Download OpenAPI Document) и сравнить: новые/удалённые/изменённые эндпоинты с параметрами и полями.
     </p>
     <div class="bar">
       <select bind:value={specA} class="sel">
-        <option value="current">🌐 Текущая версия (с сервера)</option>
-        {#each specs as sp}<option value={sp.file}>{sp.file} · {sp.endpoints} путей</option>{/each}
+        <option value="current">{t('🌐 Текущая версия (с сервера)')}</option>
+        {#each specs as sp}<option value={sp.file}>{sp.file} · {sp.endpoints} {t('путей')}</option>{/each}
       </select>
       <span class="dim">→</span>
       <select bind:value={specB} class="sel">
-        <option value="">— выбери док —</option>
-        <option value="current">🌐 Текущая версия (с сервера)</option>
-        {#each specs as sp}<option value={sp.file}>{sp.file} · {sp.endpoints} путей</option>{/each}
+        <option value="">{t('— выбери док —')}</option>
+        <option value="current">{t('🌐 Текущая версия (с сервера)')}</option>
+        {#each specs as sp}<option value={sp.file}>{sp.file} · {sp.endpoints} {t('путей')}</option>{/each}
       </select>
-      <button class="btn" onclick={runSpecDiff} disabled={!specA || !specB || specDiffing}>{specDiffing ? '⏳' : 'Сравнить доки'}</button>
-      <label class="btn">📄 Загрузить .json<input type="file" accept=".json,application/json" hidden onchange={uploadSpec} /></label>
+      <button class="btn" onclick={runSpecDiff} disabled={!specA || !specB || specDiffing}>{specDiffing ? '⏳' : t('Сравнить доки')}</button>
+      <label class="btn">{t('📄 Загрузить .json')}<input type="file" accept=".json,application/json" hidden onchange={uploadSpec} /></label>
     </div>
     {#if specs.length}
       <div class="dim" style="font-size:12px; margin-bottom:6px">
-        Сохранённые доки: {#each specs as sp}<span class="rfile">{sp.file}<button class="x" title="удалить" onclick={() => delFile(sp.file)}>✕</button></span>{/each}
+        {t('Сохранённые доки:')} {#each specs as sp}<span class="rfile">{sp.file}<button class="x" title="удалить" onclick={() => delFile(sp.file)}>✕</button></span>{/each}
       </div>
     {/if}
     {#if sdiff}
@@ -343,18 +343,18 @@
       {:else}
         <div class="sum" style="margin:8px 0">
           {sdiff.a} → {sdiff.b}:
-          <b class="ok">+{sdiff.added.length} новых</b> ·
-          <b class="bad" class:zero={!sdiff.removed.length}>−{sdiff.removed.length} удалённых</b> ·
-          <b class="warn">~{sdiff.changed.length} изменённых</b>
+          <b class="ok">+{sdiff.added.length} {t('новых')}</b> ·
+          <b class="bad" class:zero={!sdiff.removed.length}>−{sdiff.removed.length} {t('удалённых')}</b> ·
+          <b class="warn">~{sdiff.changed.length} {t('изменённых')}</b>
         </div>
         {#each sdiff.added as e}
           <div class="row"><span class="st ok">+</span><span class="name mono">{e.key}</span><span class="ms"></span>
-            <span class="detail">параметры: {e.params.join(', ') || '—'}{e.body.length ? ` · тело: ${e.body.join(', ')}` : ''}{e.resp.length ? ` · ответ: ${e.resp.slice(0, 12).join(', ')}` : ''}</span>
+            <span class="detail">{t('параметры:')} {e.params.join(', ') || '—'}{e.body.length ? ` · ${t('тело:')} ${e.body.join(', ')}` : ''}{e.resp.length ? ` · ${t('ответ:')} ${e.resp.slice(0, 12).join(', ')}` : ''}</span>
           </div>
         {/each}
         {#each sdiff.removed as e}
           <div class="row fail"><span class="st bad">−</span><span class="name mono">{e.key}</span><span class="ms"></span>
-            <span class="detail">параметры: {e.params.join(', ') || '—'}</span>
+            <span class="detail">{t('параметры:')} {e.params.join(', ') || '—'}</span>
           </div>
         {/each}
         {#each sdiff.changed as e}
@@ -363,7 +363,7 @@
           </div>
         {/each}
         {#if !sdiff.added.length && !sdiff.removed.length && !sdiff.changed.length}
-          <div class="dim" style="font-size:12.5px">Различий нет — доки идентичны.</div>
+          <div class="dim" style="font-size:12.5px">{t('Различий нет — доки идентичны.')}</div>
         {/if}
       {/if}
     {/if}

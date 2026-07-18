@@ -1,99 +1,110 @@
 # GGBook Club Simulator
 
-Симулятор живого компьютерного клуба + стенд тестирования API для **Gizmo V3**.
+**English** | [Русский](README.ru.md)
 
-Виртуальные игроки приходят в клуб, садятся за хосты и консоли, играют, заказывают на бар, пополняют баланс, бронируют места, берут ассеты, выходят покурить — всё через реальные API Gizmo. Активность видна в админ-панели и во всех отчётах Gizmo (финансы, приложения, смены). Вторая ипостась — вкладка **Тесты API**: сценарные проверки и полный скан всех ~1000 эндпоинтов из OpenAPI-документа с сохранением отчётов и диффом между версиями Gizmo.
+A living e-sports club simulator + API test bench for **Gizmo V3**.
 
-> ## ⚠️ ТОЛЬКО ДЛЯ ТЕСТОВОГО СЕРВЕРА
+Virtual players walk into the club, take seats at PCs and consoles, play games, order from the bar, top up balances, book seats, check out assets and go out for smoke breaks — all through the real Gizmo API. The activity shows up in the Gizmo admin panel and in every report (finance, applications, shifts). The second half of the project is the **API Tests** tab: scenario checks plus a full scan of ~1000 endpoints from the OpenAPI document, with saved reports and diffs between Gizmo versions.
+
+> ## ⚠️ TEST SERVER ONLY
 >
-> Симулятор пишет **реальные данные** в Gizmo: создаёт пользователей и товары,
-> проводит депозиты, продажи, чеки, Pay In/Pay Out на кассе, а кнопка «♻ Мир»
-> **безвозвратно удаляет** всех ботов. Запуск на боевом сервере испортит
-> отчёты, кассу и базу клиентов. Разверните отдельный тестовый Gizmo и
-> подключайте симулятор только к нему.
+> The simulator writes **real data** into Gizmo: it creates users and products,
+> performs deposits, sales, invoices and register Pay In/Pay Out, and the
+> "♻ World" button **permanently deletes** all bots. Running it against a
+> production server will corrupt your reports, register and customer base.
+> Set up a dedicated test Gizmo server and point the simulator only at it.
 
-## Что нужно
+## Requirements
 
 - Node.js ≥ 18
-- Тестовый сервер **Gizmo V3** (проверено на v3.0) и оператор с правами на пользователей/продажи/смены
-- Опционально: SQL Server базы Gizmo — только для события «игрок запустил Dota 2» (AppStat пишется клиентом Gizmo, API для записи нет). Без SQL всё остальное работает.
+- A **Gizmo V3** test server (verified on v3.0.81) and an operator account with user/sales/shift permissions
+- Optional: SQL Server access to the Gizmo database — needed only for the "player launched Dota 2" event (AppStat rows are written by the Gizmo client; there is no API for them). Everything else works without SQL.
 
-## Запуск с нуля
+## Getting started
 
 ```bash
 npm install
-npm run build:web          # собрать веб-интерфейс (один раз)
+npm run build:web          # build the web UI (once)
 npm start
 ```
 
-Откройте **http://localhost:5555** — при первом запуске стартует мастер настройки:
+Open **http://localhost:5555** — on first run a setup wizard walks you through:
 
-1. **Подключение** — адрес/порт Gizmo, логин/пароль оператора, бренч, SQL-пароль (можно пропустить). «🔌 Проверить связь» реально пингует Gizmo и SQL и показывает версию сервера.
-2. **Режим** — «Симулятор клуба» или «Тестировать API Gizmo V3» (обе вкладки доступны всегда).
-3. **Тема интерфейса** — обычная, Terraria или Doom Eternal (в Doom игроки на карте — демоны, персонал — Doomguy; акцентный цвет меняется как в игре).
+1. **Connection** — Gizmo address/port, operator login/password, branch, SQL password (optional). "🔌 Test connection" actually pings Gizmo and SQL and shows the server version.
+2. **Mode** — "Club simulator" or "Test Gizmo V3 API" (both tabs remain available at any time).
+3. **UI theme** — plain, Terraria or Doom Eternal (in Doom the players on the map are demons and the staff is Doomguy; the accent color is switchable).
 
-Всё сохраняется в `sim.config.json` (в git не попадает). Дальше — просто `npm start`.
+Everything is stored in `sim.config.json` (git-ignored). From then on just `npm start`.
 
-## Возможности
+> The web UI is available in English and Russian (switchable in the wizard and in the header).
+> The live simulation feed (bot chatter, order comments, personas) is generated in Russian —
+> that's the flavor of the simulated club.
 
-- **Дашборд** — карта хостов, карточки игроков с персонами, очередь заказов, счётчики смены, живая лента (SSE-пуш, без поллинга).
-- **🕹 Вид сверху** — пиксельная 2D-карта клуба в реальном времени: зоны ЗАЛ/VIP/BOOTCAMP/КОНСОЛИ/БАР, «играющие» мониторы, походы к бару и в курилку на улицу, кухня с поваром и тикетами заказов, курьер-официант, туалет, торговый автомат, клубный кот. Камера: колесо — зум, драг — пан, dblclick — вписать. Стилистика следует теме интерфейса.
-- **📊 Отчёты** — живые «биржевые» графики (занятость, касса, очередь, сервис) в боковой панели поверх любой вкладки.
-- **⚡ События** — форс-события: посадить игрока, компанию, турнир, нового игрока, заказ, void чека, Pay In/Out на кассе.
-- **♻ Мир** — снести тестовый мир (жёсткое удаление всех ботов, логины освобождаются) и сгенерировать новый: другие персоны и другая планировка комнат.
-- **🧪 Тесты API** — 19 сценарных тестов (самоочищающиеся: продажа→void, бронь→отмена, логин→логаут) + полный скан каталога из `GET /openapi/v3.json` (8 воркеров, таймауты); отчёты в `apitest-reports/`, дифф между версиями Gizmo показывает новые/удалённые/изменённые эндпоинты.
+## Features
 
-У каждого бота — персона (имя + характер: задрот, казуал, гурман, молчун, залётный, стример): посещаемость по дням, длительность сессий, болтливость в комментариях, щедрость пополнений. Клуб живёт по ритму дня: вечером час пик, ночью пусто, в выходные людней. По ходу симуляции регистрируются новые игроки (до `maxPlayers`). Бот-оператор ведёт смену, готовит и выдаёт заказы, продаёт на кассе.
+- **Dashboard** — host map, player cards with personas, order queue, shift counters, live event feed (SSE push, no polling).
+- **🕹 Top-down view** — a pixel-art live map of the club: HALL/VIP/BOOTCAMP/CONSOLES/BAR zones, animated "in-game" monitors, walks to the bar and the outdoor smoking spot, a kitchen with a cook and order tickets, a waiter delivering orders, a WC, a vending machine and the club cat. Camera: wheel to zoom, drag to pan, double-click to fit. The art style follows the UI theme.
+- **📊 Reports** — exchange-style live charts (occupancy, register, queue, service) in a side panel that overlays any tab.
+- **⚡ Events** — force events: seat a player, a group, a tournament, a newcomer, an order, an invoice void, register Pay In/Out.
+- **♻ World** — tear the test world down (hard-deletes all bots, frees the logins) and generate a new one: different personas and a different room layout.
+- **🧪 API Tests**:
+  - 19 scenario tests (self-cleaning: sale→void, reservation→cancel, login→logout);
+  - a full scan of the GET catalog from `GET /openapi/v3.json` (auto-filled required parameters, live sample ids, per-request inspector with full request/response details);
+  - a **mutation scan**: for every module with a POST+DELETE pair it creates a test record (body generated from the OpenAPI schema), updates it with PUT and deletes it — nothing but its own data is ever touched;
+  - reports saved to `apitest-reports/`, diffs between Gizmo versions for both **scan results** and the **API documents themselves** (added/removed/changed endpoints with parameter and field details), manual doc-vs-doc comparison and report cleanup.
 
-### Консоли (endpoint-хосты)
+Every bot has a persona (name + character: grinder, casual, foodie, silent one, drop-in, streamer) that drives attendance, session length, chattiness and generosity. The club lives by a daily rhythm: evening rush hour, empty nights, busier weekends. New players register over time (up to `maxPlayers`). A bot operator runs the shift, cooks and hands out orders, sells at the register.
 
-Симулятор сеет endpoint-хосты «PS5 1»/«PS5 2» (maximumUsers 4) — на консоль садятся несколько человек, компании её предпочитают. На карте это ТВ с диваном, подпись показывает занятость («PS5 2 2/4»). Грабли Gizmo: endpoint-хост обязан иметь группу хостов (иначе loginResult 32); loginResult 65536 — упёрлись в лимит одновременных сессий лицензии (держите `maxSeated` ниже него).
+### Consoles (endpoint hosts)
 
-## Что симулируется
+The simulator seeds endpoint hosts "PS5 1"/"PS5 2" (maximumUsers 4) — several people sit at a console together, and groups prefer it. On the map it is a TV with a couch; the label shows occupancy ("PS5 2 2/4"). Gizmo gotchas: an endpoint host must belong to a host group (otherwise loginResult 32); loginResult 65536 means you hit the license concurrent-session limit (keep `maxSeated` below it).
 
-| Событие | Как | Где видно в Gizmo |
+## What gets simulated
+
+| Event | How | Where it shows in Gizmo |
 |---|---|---|
-| Игрок сел за хост | `POST /users/{id}/login/{hostId}` | Мониторинг: хост «Занят» |
-| Игрок ушёл | `POST /users/{id}/logout` | visits/logins/playtime |
-| Заказ на бар (с комментарием) | user-корзина + note | Заказы, SSE |
-| Пополнение баланса | операторская корзина (нал/карта) | Финансы, депозиты |
-| Покупка пакета времени | операторская корзина, invoice | Продажи, отчёт смены |
-| Продажа на кассе / void чека | invoice + `invoices/{id}/void` | Отчёт Voids |
-| Касса Pay In / Pay Out | `registertransactions` (типы 1/2) | Отчёт смены |
-| Бронь на вечер | `POST /reservations` | Бронирования |
-| Взял/вернул ассет | checkout/checkin | Ассеты пользователя |
-| Поиграл в приложение | INSERT в AppStat (SQL) | Отчёт по приложениям |
-| Компания/турнир | групповые логины + AppStat | Мониторинг, приложения |
-| Регистрация игрока | `POST /users` с персоной | База пользователей |
+| Player takes a seat | `POST /users/{id}/login/{hostId}` | Monitoring: host busy |
+| Player leaves | `POST /users/{id}/logout` | visits/logins/playtime |
+| Bar order (with a comment) | user cart + note | Orders, SSE |
+| Balance top-up | operator cart (cash/card) | Finance, deposits |
+| Time package purchase | operator cart, invoice | Sales, shift report |
+| Register sale / invoice void | invoice + `invoices/{id}/void` | Voids report |
+| Register Pay In / Pay Out | `registertransactions` (types 1/2) | Shift report |
+| Evening reservation | `POST /reservations` | Reservations |
+| Asset check-out/check-in | checkout/checkin | User assets |
+| Played an application | INSERT into AppStat (SQL) | Applications report |
+| Group visit / tournament | group logins + AppStat | Monitoring, applications |
+| New player registration | `POST /users` with a persona | User base |
 
-## Конфигурация
+## Configuration
 
-Приоритет: CLI-аргументы → переменные окружения (`GIZMO_*`, `SQL_*`, `SIM_*`) → `sim.config.json` → дефолты. Всё правится из ⚙ Настроек в веб-интерфейсе: тик/скорость/веса применяются на лету, доступы и стартовое число ботов — после перезапуска.
+Priority: CLI arguments → environment variables (`GIZMO_*`, `SQL_*`, `SIM_*`) → `sim.config.json` → defaults. Everything is editable from ⚙ Settings in the web UI: tick/speed/weights apply live, credentials and the starting bot count apply after a restart.
 
-| Ключ | Что делает |
+| Key | Meaning |
 |---|---|
-| `players` / `maxPlayers` | стартовое число ботов / потолок базы |
-| `maxSeated` | целевая занятость; держите **ниже лимита сессий вашей лицензии** |
-| `tickSeconds` / `speed` | частота событий / ускорение клубного времени |
-| `uiPort` | порт веб-интерфейса (0 — выключить) |
-| `weights` | относительные частоты событий |
+| `players` / `maxPlayers` | starting bot count / user-base cap |
+| `maxSeated` | target occupancy; keep it **below your license session limit** |
+| `tickSeconds` / `speed` | event frequency / club-time acceleration |
+| `uiPort` | web UI port (0 disables it) |
+| `uiLang` | web UI language: `en` or `ru` |
+| `weights` | relative event frequencies |
 
 ```bash
-node index.js --players 8 --tick 5    # CLI-переопределения
-npm run calm                          # спокойный вечер
-npm run rush                          # час пик
+node index.js --players 8 --tick 5    # CLI overrides
+npm run calm                          # quiet evening
+npm run rush                          # rush hour
 ```
 
-`Ctrl+C` — мягкая остановка: боты возвращают ассеты и разлогиниваются.
+`Ctrl+C` performs a soft stop: bots return their assets and log out.
 
-## Разработка веб-интерфейса
+## Web UI development
 
-Фронт в `web/` (Vite + Svelte 5 + bits-ui). Дев-режим: `cd web && npm run dev` (порт 5556, API проксируется на 5555). Продакшен: `npm run build:web` — собранный `web/dist` раздаёт сам симулятор.
+The frontend lives in `web/` (Vite + Svelte 5 + bits-ui). Dev mode: `cd web && npm run dev` (port 5556, API proxied to 5555). Production: `npm run build:web` — the resulting `web/dist` is served by the simulator itself.
 
-## Совместимость
+## Compatibility
 
-SDK — [gizmovsky](https://www.npmjs.com/package/gizmovsky) (v1/v2/v3). Проверено на Gizmo v3.0. Известные серверные баги Gizmo (не симулятора): `/achievements*` и часть `/reports/*` возвращают 500 на некоторых сборках — скан API помечает их честно.
+SDK — [gizmovsky](https://www.npmjs.com/package/gizmovsky) (v1/v2/v3). Verified on Gizmo v3.0.81. Known server-side Gizmo bugs (not the simulator's): `/achievements*` and some `/reports/*` return 500 on certain builds — the API scan flags them honestly.
 
-## Лицензия
+## License
 
 MIT
