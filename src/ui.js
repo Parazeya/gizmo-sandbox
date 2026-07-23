@@ -1,8 +1,9 @@
-// The simulator web server. The primary UI is the built Svelte app (web/dist);
-// this file serves it and exposes the JSON/SSE API:
-// GET  /api/state   — world snapshot (JSON)
-// GET  /api/config  — current config; POST — apply live + save to sim.config.json
-// GET  /events      — SSE event stream (the same lines as in the console)
+// Web server. The real UI is the built Svelte app in web/dist, this file serves
+// it and keeps the JSON/SSE API around it:
+//   GET  /api/state    world snapshot
+//   GET  /api/health   connection watchdog, POST to re-check now
+//   GET  /api/config   current config, POST applies it live and saves the file
+//   GET  /events       SSE stream, the same lines the console prints
 import http from 'node:http'
 import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -12,10 +13,11 @@ import { runApiTests, getLastResults } from './apitests.js'
 import { runFullScan, runMutationScan, listReports, readReport, diffReports, listScanHosts, listSpecs, diffSpecFiles, saveSpecUpload, deleteReportFile, clearReports } from './apicatalog.js'
 import { gapi, data, reconnectGizmo } from './gizmo.js'
 import { sqlPing, sqlEnabled, sqlReconnect } from './sql.js'
+import { healthSnapshot } from './health.js'
 import { loadOpenApiSpec } from './apicatalog.js'
 
-// The built Svelte frontend (web/dist). If it isn't built (`npm run build` in
-// web/) — the legacy embedded pages (PAGE/PAGE_CLUB) are served as a fallback.
+// If web/dist is missing (nobody ran the build in web/), fall back to the old
+// embedded pages below.
 const DIST = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web', 'dist')
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -50,7 +52,7 @@ export function broadcastEvent(type, data) {
   for (const res of clients) res.write(payload)
 }
 
-export function startUI({ port, getState, getFeed, getHistory, onConfig, onAction, onWorldReset }, log) {
+export function startUI({ port, getState, getFeed, getHistory, onConfig, onAction, onWorldReset, onHealthCheck }, log) {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x')
     if (url.pathname === '/api/state') {
@@ -61,6 +63,16 @@ export function startUI({ port, getState, getFeed, getHistory, onConfig, onActio
     if (url.pathname === '/api/history') {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' })
       res.end(JSON.stringify(getHistory?.() ?? []))
+      return
+    }
+    // Connection watchdog: current verdict, POST — check right now
+    if (url.pathname === '/api/health') {
+      const send = (h) => {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' })
+        res.end(JSON.stringify(h))
+      }
+      if (req.method === 'POST') Promise.resolve(onHealthCheck?.()).then((h) => send(h ?? healthSnapshot())).catch(() => send(healthSnapshot()))
+      else send(healthSnapshot())
       return
     }
     // ♻ Tear down the test world and generate a new one (bots, personas, rooms)
@@ -251,6 +263,7 @@ export function startUI({ port, getState, getFeed, getHistory, onConfig, onActio
         state: getState(),
         history: getHistory?.() ?? [],
         feed: getFeed(),
+        health: healthSnapshot(),
       })}\n\n`)
       // For the legacy embedded pages — feed history as unnamed events
       for (const line of getFeed()) res.write(`data: ${JSON.stringify(line)}\n\n`)
@@ -383,9 +396,11 @@ const EMO = { 'задрот':'🎧','казуал':'🙂','гурман':'🍕',
 async function refresh() {
   try {
     const s = await fetch('/api/state').then(r => r.json())
+    const h = s.health ?? {}
     $('meta').textContent = 'скорость ×' + s.speed + ' · тик ' + s.tickSeconds + 'с · смена ' +
       (s.shift.id ? '#' + s.shift.id : '—') + ' · в клубе ' + s.bots.filter(b => b.hostName).length + ' из ' + s.bots.length +
-      (s.paused ? ' · ⏸ ПАУЗА' : '')
+      (s.paused ? ' · ⏸ ПАУЗА' : '') +
+      (h.frozen ? ' · ❄ НЕТ СВЯЗИ (API: ' + (h.api?.detail ?? '?') + ') — проверка через ' + (h.nextCheckSec ?? '?') + 'с' : '')
     $('pausebtn').textContent = s.paused ? '▶ Продолжить' : '⏸ Пауза'
     $('pausebtn').dataset.state = s.paused ? 'paused' : ''
 
@@ -423,7 +438,7 @@ async function refresh() {
 }
 refresh(); setInterval(refresh, 2000)
 
-// ── Настройки ────────────────────────────────────────────────────────────────
+// Настройки
 // ⟳ в подписи — параметр применится после перезапуска симулятора.
 const CFG_SCHEMA = [
   ['Подключение Gizmo ⟳', [
@@ -513,7 +528,7 @@ new EventSource('/events').onmessage = (e) => {
 }
 </script></body></html>`
 
-// ── /club — pixel top-down view: hall, bots walk/play, event bubbles ────────
+// /club — pixel top-down view: hall, bots walk/play, event bubbles
 const PAGE_CLUB = /* html */ `<!doctype html>
 <html lang="ru"><head>
 <meta charset="utf-8">
@@ -672,7 +687,7 @@ async function poll() {
 }
 poll(); setInterval(poll, 2500)
 
-// ── События → облачка ────────────────────────────────────────────────────────
+// События → облачка
 const short = (msg) => {
   const parts = msg.split(') ')
   let tail = parts.length > 1 ? parts.slice(1).join(') ') : msg
@@ -706,8 +721,8 @@ new EventSource('/events').onmessage = (e) => {
   }
 }
 
-// ── Отрисовка ────────────────────────────────────────────────────────────────
-// ── Terraria-стиль: обводка + затенение ─────────────────────────────────────
+// Отрисовка
+// Terraria-стиль: обводка + затенение
 const OUTLINE = '#0a0c10'
 function shade(hex, amt) {
   const n = parseInt(hex.slice(1), 16)
@@ -1203,7 +1218,7 @@ function drawBubble(x, y, text, until, t) {
   return true
 }
 
-// ── Камера: вписать в экран, пан тягой, зум колесом ─────────────────────────
+// Камера: вписать в экран, пан тягой, зум колесом
 const dpr = window.devicePixelRatio || 1
 let cam = { z: 1, x: 0, y: 0 }
 function resize() {
@@ -1313,7 +1328,7 @@ function frame(t) {
 requestAnimationFrame(frame)
 </script></body></html>`
 
-// ── /reports — живые графики как биржевой тикер: лента непрерывно ползёт ─────
+// /reports — живые графики как биржевой тикер: лента непрерывно ползёт
 // влево (rAF, 60fps), новые точки дописываются справа, у правого края —
 // «ценник» текущего значения. Данные — /api/history (точка раз в секунду).
 const PAGE_REPORTS = /* html */ `<!doctype html>
@@ -1513,7 +1528,7 @@ async function poll() {
 poll(); setInterval(poll, 1000)
 </script></body></html>`
 
-// ── Встраиваемый виджет отчётов: выдвижная панель поверх любой страницы ──────
+// Встраиваемый виджет отчётов: выдвижная панель поверх любой страницы
 // Кнопка #repToggle (есть в шапке каждой страницы) открывает/закрывает панель;
 // графики — те же «биржевые» ленты, рисуются только пока панель открыта.
 // Весь код в IIFE с rep-префиксами — не конфликтует со скриптами страниц.

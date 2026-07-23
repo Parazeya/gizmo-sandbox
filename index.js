@@ -1,26 +1,26 @@
-// Living club simulator for a test Gizmo server (Gizmo Sandbox).
+// Gizmo Sandbox: a living club on a test Gizmo server.
 //
 //   node index.js --players 8 --tick 10 --speed 1
 //
-// The bot players are as close to real ones as possible: they sit for 30 min –
-// 4 hours, order at the bar at most once every half hour, occasionally top up
-// their balance, check out assets, make reservations. The bot operator works
-// the order queue (accepted → cooked → paid → delivered), sells at the register
-// and runs the shift. --speed 4 accelerates "club time" 4x (for a demo).
-//
-// Ctrl+C — soft stop: bots return their assets and leave the hosts.
+// Bots behave like actual visitors: a session runs 30 min to 4 hours, a bar
+// order lands maybe twice an hour, sometimes they top up, take a headset, book
+// a seat for the evening. The operator bot drives the queue (accepted, cooked,
+// paid, delivered), sells at the register and keeps the shift open.
+// --speed 4 makes club time run 4x faster, handy for a demo.
+// Ctrl+C is a soft stop: assets go back, everybody logs out.
 
 import { config } from './src/config.js'
 import { gapi } from './src/gizmo.js'
 import { loadWorld, resetWorld, world, seatedBots, isPresentToday } from './src/world.js'
 import { updateConfig } from './src/config.js'
 import * as actions from './src/actions.js'
-import { closeSql, disableSql, sqlEnabled } from './src/sql.js'
+import { closeSql, sqlEnabled } from './src/sql.js'
 import { startUI, broadcast, broadcastEvent } from './src/ui.js'
+import { health, healthSnapshot, startHealth, stopHealth, whenOnline, noteFailure, forceCheck } from './src/health.js'
 
 const ts = () => new Date().toLocaleTimeString('ru-RU')
 
-// Feed and counters — for the console and the web UI at the same time.
+// One feed for both consumers: stdout and the browser.
 const feed = []
 const stats = { arrive: 0, order: 0, delivered: 0, sale: 0, deposit: 0, buyTime: 0, reserve: 0, appSession: 0, leave: 0, newcomer: 0, group: 0, tournament: 0 }
 const STAT_BY_EMOJI = { '🪑': 'arrive', '🍔': 'order', '✅': 'delivered', '🧾': 'sale', '💵': 'deposit', '⏱': 'buyTime', '📅': 'reserve', '🎮': 'appSession', '🚪': 'leave', '📝': 'newcomer', '👥': 'group', '🏆': 'tournament' }
@@ -32,23 +32,22 @@ const log = (msg) => {
   const line = { t: ts(), msg }
   feed.push(line)
   if (feed.length > 200) feed.shift()
-  broadcast(line)                 // legacy embedded pages (unnamed SSE)
-  broadcastEvent('feed', line)    // Svelte frontend
+  broadcast(line)                 // unnamed SSE, the old embedded pages
+  broadcastEvent('feed', line)    // svelte frontend
 }
 
-// "Club time" minutes from real milliseconds.
+// real ms -> club minutes
 const clubMin = (ms) => Math.max(0, Math.round((ms * config.speed) / 60_000))
 
 let paused = false
 
-// Force events and pause from the web UI.
 async function uiAction(name) {
   if (name === 'pause') { paused = true; log('⏸ симуляция на паузе (из веб-интерфейса)'); return true }
   if (name === 'resume') { paused = false; log('▶ симуляция продолжается'); return true }
+  if (health.frozen) throw new Error('нет связи с клубом — симуляция заморожена')
   if (!ACTIONS[name]) throw new Error(`нет события «${name}»`)
-  // force=true: the web UI buttons ignore cooldowns and log the refusal reason
-  const done = await ACTIONS[name](log, true)
-  broadcastEvent('state', uiState())  // instant push after a force action
+  const done = await ACTIONS[name](log, true)   // force=true: skip cooldowns, tell why if it refuses
+  broadcastEvent('state', uiState())
   if (!done) log(`🤷 форс-событие «${name}» не сработало (нет подходящих ботов/хостов или кулдаун)`)
   return done
 }
@@ -61,7 +60,8 @@ function uiState() {
     speed: config.speed,
     tickSeconds: config.tickSeconds,
     paused,
-    layoutSeed: config.worldGen ?? 1,   // room layout on the map
+    health: healthSnapshot(),
+    layoutSeed: config.worldGen ?? 1,   // map layout
     revenue: world.revenue,
     shift: actions.getShiftInfo(),
     stats,
@@ -85,7 +85,7 @@ function uiState() {
     orders: world.ordersQueue.map(o => ({
       id: o.id, status: o.status,
       ageMin: clubMin(Date.now() - new Date(o.createdTime).getTime()),
-      // for the delivery animation on the map: whom to bring the order to
+      // the map needs to know who the waiter walks to
       username: world.bots.find(b => b.userId === o.userId)?.username ?? null,
     })),
   }
@@ -120,32 +120,33 @@ const ACTIONS = {
 }
 
 let stopping = false
+let worldReady = false
 
 async function tick() {
-  if (stopping || paused) return
+  if (stopping || paused || health.frozen || !worldReady) return
 
-  // Operator and "time": every tick — planned departures, order queue, shift.
-  await actions.sweepDay(log).catch(() => {})
-  await actions.sweepSessions(log).catch(() => {})
-  await actions.sweepOrders(log).catch(() => {})
-  await actions.sweepShift(log).catch(() => {})
+  // the boring part every tick: departures, order queue, shift
+  await actions.sweepDay(log).catch(noteFailure)
+  await actions.sweepSessions(log).catch(noteFailure)
+  await actions.sweepOrders(log).catch(noteFailure)
+  await actions.sweepShift(log).catch(noteFailure)
 
-  // Plus one random event.
   const name = weightedPick()
   try {
     await ACTIONS[name](log)
   } catch (err) {
     const msg = err?.response?.data?.message ?? err.message
-    if (name === 'appSession') disableSql(msg, log)
-    else log(`⚠ ${name}: ${msg}`)
+    // a dead link is the watchdog's problem, the rest is just this event misfiring
+    if (!noteFailure(msg)) log(`⚠ ${name}: ${msg}`)
   }
 }
 
 async function shutdown() {
   if (stopping) return
   stopping = true
+  stopHealth()
   console.log('\nОстанавливаюсь: боты возвращают ассеты и расходятся…')
-  for (const bot of seatedBots()) {
+  for (const bot of health.frozen ? [] : seatedBots()) {   // no link, nothing to log out of
     for (const assetId of [...bot.assets]) {
       await gapi.v3.users.putUsersAssetsByAssetIdCheckin(assetId).catch(() => {})
     }
@@ -166,11 +167,8 @@ console.log(`  Gizmo: ${config.gizmo.ip}:${config.gizmo.port} · бренч ${co
 console.log(`  Игроков: ${config.players} · тик: ${config.tickSeconds}с · скорость ×${config.speed} · SQL(AppStat): ${sqlEnabled() ? 'вкл' : 'выкл'}`)
 console.log('══════════════════════════════════════════════')
 
-await loadWorld(log)
-await actions.ensureShift(log)
-
-// Metric history for the live reports: one point per second, last 15 minutes.
-// Kept on the server so the charts are filled the moment the page opens.
+// Chart history: a point per second, 15 minutes deep. Lives here so a freshly
+// opened page gets filled charts right away.
 const history = []
 setInterval(() => {
   if (!world.hosts.length) return
@@ -186,13 +184,11 @@ setInterval(() => {
     order: stats.order,
   })
   if (history.length > 900) history.shift()
-  // Push instead of polling: one point (~100 bytes) instead of downloading the
-  // whole history (~80 KB) every second by every open browser.
+  // push one point (~100 b) instead of every open tab re-downloading 80 KB a second
   broadcastEvent('metric', history[history.length - 1])
 }, 1000)
 
-// World snapshot — also pushed (the client polls nothing)
-setInterval(() => { if (world.hosts.length) broadcastEvent('state', uiState()) }, 2000)
+setInterval(() => broadcastEvent('state', uiState()), 2000)
 
 let timer = null
 const startTicker = () => {
@@ -200,17 +196,19 @@ const startTicker = () => {
   timer = setInterval(tick, config.tickSeconds * 1000)
 }
 
+// The UI starts before the connection check on purpose: with the club down the
+// browser should get the waiting screen, not a refused port.
 if (config.uiPort) {
   startUI({
     port: config.uiPort,
     getState: uiState,
     getFeed: () => feed,
     getHistory: () => history,
-    // Config changed from the web UI: apply the tick immediately.
-    onConfig: startTicker,
+    onConfig: () => { startTicker(); forceCheck() },
     onAction: uiAction,
-    // ♻ Tear down the world and regenerate it (UI button)
+    onHealthCheck: async () => { await forceCheck(); return healthSnapshot() },
     onWorldReset: async () => {
+      if (health.frozen) throw new Error('нет связи с клубом — попробуй после восстановления')
       const wasPaused = paused
       paused = true
       try { await resetWorld(log, updateConfig) } finally { paused = wasPaused }
@@ -219,6 +217,30 @@ if (config.uiPort) {
     },
   }, log)
 }
+
+// Nothing is touched until the club answers.
+startHealth({ log, onChange: (snap) => broadcastEvent('health', snap) })
+await whenOnline()
+
+// Loading can still blow up on an empty server (no user groups) or if the link
+// dies mid-load, so retry instead of taking the process down.
+for (;;) {
+  try {
+    await loadWorld(log)
+    await actions.ensureShift(log)
+    break
+  } catch (err) {
+    const msg = err?.response?.data?.message ?? err.message
+    log(`⚠ мир не загрузился: ${msg}`)
+    world.bots.length = 0   // loadWorld appends, drop the half-built one
+    world.hosts.length = 0
+    noteFailure(msg)
+    await new Promise((r) => setTimeout(r, 10_000))
+    await whenOnline()
+  }
+}
+worldReady = true
+
 log(`симуляция запущена — сидят за хостами: ${seatedBots().length} из ${world.bots.length} ботов`)
 
 startTicker()

@@ -1,6 +1,6 @@
-// Mini-i18n: a Russian string is the key, the en dictionary is the translation.
-// t() is reactive via $state, switching is instant. We don't translate the
-// simulation feed — it's the bots' server-side events (club flavor), see README.
+// Tiny i18n: the Russian string is the key, EN below is the translation. t() is
+// reactive through $state so switching is instant. The simulation feed is not
+// translated on purpose, it is server-side club flavor (see README).
 export const i18n = $state({ lang: 'ru' })
 
 export function setLang(l) { i18n.lang = l === 'en' ? 'en' : 'ru' }
@@ -13,6 +13,18 @@ const EN = {
   'Сменить тему интерфейса': 'Switch UI theme', 'Обычный': 'Plain',
   'подключение…': 'connecting…', 'скорость': 'speed', 'тик': 'tick', 'смена': 'shift',
   'в клубе': 'in club', 'из': 'of', 'ПАУЗА': 'PAUSED',
+  // Связь с клубом (watchdog)
+  'Связь': 'Link', 'НЕТ СВЯЗИ': 'NO LINK',
+  '🔌 Жду связь с клубом': '🔌 Waiting for the club',
+  '❄ Связь с клубом потеряна': '❄ Lost connection to the club',
+  'проверяю…': 'checking…', 'следующая проверка через': 'next check in', 'с': 's', 'попытка': 'attempt',
+  'нет связи уже': 'down for',
+  'Симуляция не стартует, пока клуб не ответит.': "The simulation won't start until the club answers.",
+  'Симуляция заморожена и продолжится сама, как только связь вернётся.':
+    'The simulation is frozen and resumes by itself once the link is back.',
+  '⟳ Проверить сейчас': '⟳ Check now',
+  'Адрес, логин и пароль — в ⚙ Настройках (окно открывается поверх этого экрана).':
+    'Address, login and password live in ⚙ Settings (the dialog opens on top of this screen).',
   '♻ Снести тестовый мир и сгенерировать новый?\nВсе боты будут ПОЛНОСТЬЮ удалены со стенда, персоны и планировка комнат станут другими.':
     '♻ Tear down the test world and generate a new one?\nAll bots will be COMPLETELY deleted from the server; personas and room layout will change.',
   // Dashboard

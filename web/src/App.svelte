@@ -1,6 +1,6 @@
 <script>
   import { Tabs } from 'bits-ui'
-  import { sim, startSim, action, fetchConfig, saveConfig } from './lib/sim.svelte.js'
+  import { sim, startSim, action, fetchConfig, saveConfig, checkHealth } from './lib/sim.svelte.js'
   import { t, i18n, setLang } from './lib/i18n.svelte.js'
   import Dashboard from './components/Dashboard.svelte'
   import ClubMap from './components/ClubMap.svelte'
@@ -9,6 +9,7 @@
   import SettingsDialog from './components/SettingsDialog.svelte'
   import ForceMenu from './components/ForceMenu.svelte'
   import SetupWizard from './components/SetupWizard.svelte'
+  import ConnectionOverlay from './components/ConnectionOverlay.svelte'
 
   startSim()
 
@@ -58,12 +59,22 @@
   }
 
   const s = $derived(sim.state)
+  const health = $derived(sim.health)
   const meta = $derived(
     s
       ? `${t('скорость')} ×${s.speed} · ${t('тик')} ${s.tickSeconds}${i18n.lang === 'en' ? 's' : 'с'} · ${t('смена')} ${s.shift?.id ? '#' + s.shift.id : '—'} · ` +
         `${t('в клубе')} ${s.bots.filter((b) => b.hostName).length} ${t('из')} ${s.bots.length}` +
-        (s.paused ? ` · ⏸ ${t('ПАУЗА')}` : '')
+        (health?.frozen ? ` · ❄ ${t('НЕТ СВЯЗИ')}` : s.paused ? ` · ⏸ ${t('ПАУЗА')}` : '')
       : t('подключение…'),
+  )
+
+  // Лампочка связи в шапке: зелёная — клуб отвечает, жёлтая — SQL выключен,
+  // красная — заморозка. Клик = проверить прямо сейчас.
+  const linkState = $derived(
+    !health ? 'unknown' : health.frozen ? 'down' : health.sql?.ok === 'skip' ? 'partial' : 'up',
+  )
+  const linkTitle = $derived(
+    health ? `Gizmo API: ${health.api?.detail ?? '?'}\nSQL: ${health.sql?.detail ?? '?'}` : t('подключение…'),
   )
 
   async function togglePause() {
@@ -85,6 +96,9 @@
     </Tabs.Root>
 
     <span class="actions">
+      <button class="btn link {linkState}" onclick={checkHealth} title={linkTitle}>
+        <span class="led"></span>{t('Связь')}
+      </button>
       <ForceMenu />
       <button class="btn" class:on={reportsOpen} onclick={() => (reportsOpen = !reportsOpen)}>{t('📊 Отчёты')}</button>
       <button class="btn" onclick={togglePause}>{s?.paused ? t('▶ Продолжить') : t('⏸ Пауза')}</button>
@@ -117,6 +131,9 @@
 
 <ReportsPanel bind:open={reportsOpen} />
 <SettingsDialog bind:open={settingsOpen} />
+{#if !wizard}
+  <ConnectionOverlay />
+{/if}
 {#if wizard}
   <SetupWizard onDone={(r) => { wizard = false; theme = r.uiTheme; accent = r.uiAccent ?? 'green'; tab = r.uiMode === 'api' ? 'tests' : 'dash' }} />
 {/if}
@@ -134,6 +151,13 @@
   :global(.tab) { background: transparent; border: none; color: var(--dim); border-radius: 7px;
     padding: 5px 14px; font-size: 13px; cursor: pointer; }
   :global(.tab:hover) { color: var(--text); }
+  .link .led { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+  .link.up .led { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .link.partial .led { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .link.down .led { background: var(--red); box-shadow: 0 0 8px var(--red); animation: blink 1.2s infinite; }
+  .link.down { border-color: var(--red); color: var(--red); }
+  @keyframes blink { 50% { opacity: .35; } }
+
   .accents { display: inline-flex; gap: 5px; align-items: center; padding: 0 2px; }
   .acc { width: 18px; height: 18px; border-radius: 3px; cursor: pointer; background: var(--c);
     border: 2px solid transparent; clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);

@@ -61,6 +61,7 @@ Everything is stored in `sim.config.json` (git-ignored). From then on just `npm 
 - **📊 Reports** — exchange-style live charts (occupancy, register, queue, service) in a side panel that overlays any tab.
 - **⚡ Events** — force events: seat a player, a group, a tournament, a newcomer, an order, an invoice void, register Pay In/Out.
 - **♻ World** — tear the test world down (hard-deletes all bots, frees the logins) and generate a new one: different personas and a different room layout.
+- **🔌 Connection watchdog** — the club is probed (Gizmo API + SQL) before anything starts and every 20 s afterwards. No link on startup means the simulation simply waits, printing what is broken and when the next attempt is (5→60 s backoff). A link lost mid-run freezes the world instead of spraying errors, and it thaws by itself when the club answers again. Both the console and the web UI show it — a blinking "Связь" LED in the header and a waiting screen with a countdown and a "check now" button.
 - **🧪 API Tests**:
   - 19 scenario tests (self-cleaning: sale→void, reservation→cancel, login→logout);
   - a full scan of the GET catalog from `GET /openapi/v3.json` (auto-filled required parameters, live sample ids, per-request inspector with full request/response details);

@@ -9,6 +9,9 @@ export const sim = $state({
   history: [],     // metric points for the charts
   feed: [],        // live feed lines {t, msg}
   connected: false,
+  // Club connection watchdog (Gizmo API + SQL). `frozen` — the simulator is
+  // waiting for the link; `nextCheckSec` counts down locally between pushes.
+  health: null,
 })
 
 export async function action(name) {
@@ -25,6 +28,13 @@ export async function saveConfig(cfg) {
   return fetch('/api/config', { method: 'POST', body: JSON.stringify(cfg) }).then((r) => r.json())
 }
 
+/** Ask the server to re-check the club connection right now. */
+export async function checkHealth() {
+  const h = await fetch('/api/health', { method: 'POST' }).then((r) => r.json()).catch(() => null)
+  if (h) sim.health = h
+  return h
+}
+
 let started = false
 export function startSim() {
   if (started) return
@@ -35,10 +45,16 @@ export function startSim() {
     sim.state = d.state
     sim.history = d.history
     sim.feed = d.feed
+    sim.health = d.health ?? null
     sim.connected = true
   })
   es.addEventListener('state', (e) => {
     sim.state = JSON.parse(e.data)
+    if (sim.state?.health) sim.health = sim.state.health
+    sim.connected = true
+  })
+  es.addEventListener('health', (e) => {
+    sim.health = JSON.parse(e.data)
     sim.connected = true
   })
   es.addEventListener('metric', (e) => {

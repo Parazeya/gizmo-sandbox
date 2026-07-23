@@ -1,9 +1,9 @@
-// Direct SQL — ONLY for AppStat ("played an application"): Gizmo has no client
-// API to write launches, those rows are written solely by the host client.
-// Without SQL_PASS the appSession event is simply disabled.
+// Direct SQL, and only for AppStat. Gizmo has no client API for app launches,
+// those rows are written by the host client itself. No SQL_PASS -> appSession
+// is skipped; with a password health.js watches this connection too.
 import { config } from './config.js'
 
-let pool = null
+let connecting = null   // the pending connect, not the pool: two events at once used to open two pools
 let disabled = !config.sql.password
 
 export function sqlEnabled() {
@@ -11,22 +11,30 @@ export function sqlEnabled() {
 }
 
 async function getPool() {
-  if (pool) return pool
-  const mssql = await import('mssql')
-  pool = await mssql.default.connect({
-    server: config.sql.host,
-    port: config.sql.port,
-    database: config.sql.database,
-    user: config.sql.user,
-    password: config.sql.password,
-    options: { encrypt: false, trustServerCertificate: true },
-  })
-  return pool
+  if (!connecting) {
+    connecting = (async () => {
+      const mssql = await import('mssql')
+      return mssql.default.connect({
+        server: config.sql.host,
+        port: config.sql.port,
+        database: config.sql.database,
+        user: config.sql.user,
+        password: config.sql.password,
+        options: { encrypt: false, trustServerCertificate: true },
+        connectionTimeout: 8000,
+        requestTimeout: 15000,
+      })
+    })().catch((err) => {
+      connecting = null   // otherwise a single failed connect poisons the cache forever
+      throw err
+    })
+  }
+  return connecting
 }
 
 export async function insertAppStat({ appId, appExeId, hostId, userId, spanSeconds, branchId }) {
   const p = await getPool()
-  // AppExeId is NOT NULL: exe rows are seeded by world.js via the API (applicationExecutables).
+  // AppExeId is NOT NULL, exe rows are seeded by world.js (applicationExecutables)
   await p.request()
     .input('AppId', appId)
     .input('AppExeId', appExeId)
@@ -38,7 +46,6 @@ export async function insertAppStat({ appId, appExeId, hostId, userId, spanSecon
             VALUES (@AppId, @AppExeId, @HostId, @UserId, @Span, DATEADD(SECOND, -@Span, GETDATE()), @BranchId)`)
 }
 
-/** Ping for the API tests: SELECT 1. */
 export async function sqlPing() {
   const p = await getPool()
   const r = await p.request().query('SELECT 1 AS ok')
@@ -46,18 +53,13 @@ export async function sqlPing() {
 }
 
 export async function closeSql() {
-  if (pool) await pool.close().catch(() => {})
+  const p = connecting
+  connecting = null
+  if (p) await p.then((pool) => pool.close()).catch(() => {})
 }
 
-export function disableSql(reason, log) {
-  if (!disabled) {
-    disabled = true
-    log?.(`⚠ SQL выключен: ${reason} — событие «поиграл в приложение» пропускается`)
-  }
-}
-
-/** Recreate the connection after a config change (setup wizard / ⚙ Settings). */
+// Config changed (wizard, settings) or the watchdog saw the link go bad.
 export async function sqlReconnect() {
-  if (pool) { await pool.close().catch(() => {}); pool = null }
+  await closeSql()
   disabled = !config.sql.password
 }
