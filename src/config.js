@@ -1,9 +1,6 @@
-// Simulator configuration. Sources by priority (higher wins):
-//   1) CLI arguments (--players 8 --tick 5 --speed 6 --ui 5555)
-//   2) environment variables (GIZMO_*, SQL_*, SIM_*)
-//   3) sim.config.json in the project root (created on first run — fill it in)
-//   4) the test-stand defaults below
-// The web UI edits the config live and writes it back to sim.config.json.
+// Config sources, strongest first: CLI args (--players 8 --tick 5 --speed 6
+// --ui 5555), env (GIZMO_*, SQL_*, SIM_*), sim.config.json, defaults below.
+// The web UI edits it live and writes sim.config.json back.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -16,8 +13,7 @@ function arg(name, fallback) {
 }
 
 const DEFAULTS = {
-  // Connection to the TEST Gizmo server — filled in via the setup wizard
-  // (or sim.config.json / GIZMO_* environment variables).
+  // TEST Gizmo server. Filled in by the setup wizard, sim.config.json or GIZMO_*.
   gizmo: {
     ip: '127.0.0.1',
     port: 80,
@@ -27,8 +23,7 @@ const DEFAULTS = {
   },
   branchId: 1,
 
-  // SQL is needed ONLY to simulate application launches (AppStat is written by
-  // the Gizmo client, there is no API for it). Empty password — event disabled.
+  // SQL is only for app launches (AppStat has no API). No password, no event.
   sql: {
     host: '127.0.0.1',
     port: 1433,
@@ -37,58 +32,42 @@ const DEFAULTS = {
     password: null,
   },
 
-  // How many virtual players and how often the simulation ticks.
   players: 8,
-  // Player-base cap: the "new registration" event grows it up to this number.
-  maxPlayers: 40,
-  // Target occupancy: don't seat new players once this many are seated. Keep it
-  // below the Gizmo license concurrent-session limit (~35 on the stand), or
-  // logins hit code 65536 and the club has no rotation.
+  maxPlayers: 40,   // the "new registration" event grows the base up to this
+  // Stop seating at this many. Must stay under the license concurrent-session
+  // limit (~35 on our stand), otherwise logins start returning 65536.
   maxSeated: 32,
   tickSeconds: 10,
-  // Time acceleration (2 = one "club hour" passes in 30 real minutes). Affects
-  // session lengths and habit cooldowns.
-  speed: 1,
-  // Web UI port (world dashboard); 0 disables it.
-  uiPort: 5555,
+  speed: 1,         // 2 = a club hour passes in 30 real minutes
+  uiPort: 5555,     // 0 disables the web UI
 
-  // Bot login prefix (bots are created automatically on first run).
   botPrefix: 'sim_bot_',
   botPassword: 'sim12345',
 
-  // First run: while false the UI shows the setup wizard.
-  setupDone: false,
-  // Default mode after the wizard: 'sim' (simulator) or 'api' (API tests).
-  uiMode: 'sim',
-  // UI theme: 'plain' | 'terraria' | 'doom'.
-  uiTheme: 'plain',
-  // Doom theme accent color: 'green' (toxic, default) | 'white' | 'red' | 'blue' | 'cyan'.
-  uiAccent: 'green',
-  // Web UI language: 'ru' | 'en' (chosen in the wizard and via the header button).
+  setupDone: false, // while false the UI shows the setup wizard
+  uiMode: 'sim',    // 'sim' | 'api' — which tab opens after the wizard
+  uiTheme: 'plain', // 'plain' | 'terraria' | 'doom'
+  uiAccent: 'green',// doom accent: green (toxic) | white | red | blue | cyan
   uiLang: 'ru',
-  // World generation: grows on "tear down and regenerate" — changes the bots'
-  // personas and the room layout on the map.
-  worldGen: 1,
+  worldGen: 1,      // bumped by "tear down and regenerate": new personas, new layout
 
-  // ── Realism ──────────────────────────────────────────────────────────────
   session: {
-    minMinutes: 30,   // play session: from 30 minutes…
-    maxMinutes: 240,  // …up to 4 hours, planned on seating
-    earlyLeaveChance: 0.05, // rare early leave (per tick, after 20 minutes)
+    minMinutes: 30,
+    maxMinutes: 240,          // planned when the bot sits down
+    earlyLeaveChance: 0.05,   // per tick, only after 20 minutes
   },
   habits: {
-    orderCooldownMin: [20, 45],    // bar order — at most once every 20–45 min
-    depositCooldownMin: [40, 90],  // top-up — a rare event
-    assetCooldownMin: [25, 60],    // check an asset out/in
+    orderCooldownMin: [20, 45],
+    depositCooldownMin: [40, 90],
+    assetCooldownMin: [25, 60],
   },
   operator: {
-    orderPrepMinutes: [1, 4],      // order "cooking" time before delivery
-    saleCooldownMin: [10, 25],     // register sale to a passer-by
-    shiftHours: 8,                 // shift length (then a shift change)
+    orderPrepMinutes: [1, 4],
+    saleCooldownMin: [10, 25],
+    shiftHours: 8,
   },
 
-  // Per-tick event probabilities (weights; sessions/orders are additionally
-  // limited by the cooldowns above, so there is no spam).
+  // Weights, not probabilities. Cooldowns above still apply, so no spam.
   weights: {
     arrive: 20,        // a free bot takes a free host
     groupArrive: 5,    // a group (2–3) arrives together and sits nearby
@@ -100,7 +79,7 @@ const DEFAULTS = {
     asset: 6,          // check an asset out/in
     appSession: 8,     // "played an application" (SQL AppStat)
     operatorSale: 6,   // the operator sold at the register
-    life: 12,          // "life" — actions outside Gizmo, console only
+    life: 12,          // flavor only: nothing leaves the console
     newcomer: 2,       // a new player registration (up to maxPlayers)
     registerCash: 2,   // register: change/collection (Gizmo shift report)
     voidSale: 1,       // void of a mistaken invoice (Voids report)
@@ -121,7 +100,7 @@ function deepMerge(base, over) {
 
 export const config = structuredClone(DEFAULTS)
 
-// 3) file
+// file
 if (existsSync(CONFIG_PATH)) {
   try {
     deepMerge(config, JSON.parse(readFileSync(CONFIG_PATH, 'utf8')))
@@ -130,7 +109,7 @@ if (existsSync(CONFIG_PATH)) {
   }
 }
 
-// 2) environment
+// env
 const env = process.env
 if (env.GIZMO_HOST) config.gizmo.ip = env.GIZMO_HOST
 if (env.GIZMO_PORT) config.gizmo.port = Number(env.GIZMO_PORT)
@@ -148,23 +127,22 @@ if (env.SIM_TICK) config.tickSeconds = Number(env.SIM_TICK)
 if (env.SIM_SPEED) config.speed = Number(env.SIM_SPEED)
 if (env.SIM_UI_PORT) config.uiPort = Number(env.SIM_UI_PORT)
 
-// 1) CLI
+// argv
 config.players = Number(arg('players', config.players))
 config.tickSeconds = Number(arg('tick', config.tickSeconds))
 config.speed = Number(arg('speed', config.speed))
 config.uiPort = Number(arg('ui', config.uiPort))
 
-/** Save the current config to sim.config.json (whole file, human-readable). */
 export function saveConfig() {
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + '\n')
 }
 
-/** Apply a patch (nested object) live and save it to the file. */
+/** Apply a nested patch live and persist it. */
 export function updateConfig(patch) {
   deepMerge(config, patch)
   saveConfig()
   return config
 }
 
-// No file yet — create it with the current values so there is something to fill in.
+// First run: drop a file with the defaults so there is something to fill in.
 if (!existsSync(CONFIG_PATH)) saveConfig()

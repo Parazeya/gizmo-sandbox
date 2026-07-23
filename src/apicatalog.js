@@ -1,13 +1,13 @@
-// Full scan of the Gizmo V3 API to check stability across Gizmo versions.
+// Full sweep over the Gizmo V3 API, mostly to see what a version bump broke.
 //
-// The endpoint catalog is taken from the LIVE OpenAPI document of the server
-// itself (GET /openapi/v3.json — the same "Download OpenAPI Document" from the
-// Scalar docs), so it always matches the installed version. Fallback — parse SDK.
+// The catalog comes from the server's own OpenAPI document (GET /openapi/v3.json,
+// the same file Scalar hands out under "Download OpenAPI Document"), so it always
+// matches the installed version. If that is unavailable we parse the SDK sources.
 //
-// The run is safe: GET endpoints are actually called (by-id — with live stand
-// ids substituted), mutations (POST/PUT/DELETE) are only catalogued — scenario
-// tests cover them. The report is saved to apitest-reports/*.json;
-// a diff of two reports shows added / removed / changed endpoints.
+// Safe by construction: GETs are really called (by-id ones get live stand ids
+// substituted), POST/PUT/DELETE are only catalogued, the scenario tests cover
+// those. Reports land in apitest-reports/*.json and two of them diff into
+// added / removed / changed endpoints.
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -18,7 +18,7 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url))
 const SDK_V3 = path.join(ROOT, '..', 'node_modules', 'gizmovsky', 'src', 'v3')
 const REPORTS_DIR = path.join(ROOT, '..', 'apitest-reports')
 
-// ── Catalog from the server's OpenAPI document ──────────────────────────────
+// Catalog from the server's OpenAPI document
 export async function loadOpenApiSpec() {
   const auth = Buffer.from(`${config.gizmo.username}:${config.gizmo.password}`).toString('base64')
   const url = `http://${config.gizmo.ip}:${config.gizmo.port}/openapi/v3.json`
@@ -48,9 +48,9 @@ function catalogFromSpec(spec) {
   return endpoints
 }
 
-// Fallback: catalog from the SDK sources (if openapi is unavailable).
-// The sources ship in the gizmovsky npm package (files: src); if they're still
-// missing — return empty, and the scan honestly says "catalog unavailable".
+// Fallback when /openapi is missing: read the catalog out of the SDK sources
+// shipped in the gizmovsky package. If those are gone too we return nothing and
+// the scan says so instead of pretending.
 function catalogFromSdk() {
   const endpoints = []
   if (!existsSync(SDK_V3)) return endpoints
@@ -69,14 +69,14 @@ function catalogFromSdk() {
   return endpoints.filter((e) => e.verb)
 }
 
-// ── Live stand ids for substituting path parameters ─────────────────────────
+// Live ids from the stand, for filling path parameters
 async function collectSamples() {
   const s = {}
   const safe = async (fn) => { try { return await fn() } catch { return null } }
   const first = (r) => data(r)[0]?.id
   s.hostId = await safe(async () => first(await gapi.v3.hosts.getHosts({ paginationLimit: 1 })))
   s.userId = await safe(async () => first(await gapi.v3.users.getUsers({ paginationLimit: 1 })))
-  // Products — by TYPE: normal / time package (1) / bundle (2). Endpoints like
+  // Products by type: normal, time package (1), bundle (2). Endpoints like
   // /products/time/{id}/... accept ONLY a product of their type — else not found.
   await safe(async () => {
     const prods = data(await gapi.v3.products.getProducts({ paginationLimit: 100 }))
@@ -123,10 +123,10 @@ async function collectSamples() {
   return s
 }
 
-// ── Fixtures: we CREATE the missing entities — that's the functional test
-// "create → read". Everything is named api_scan_* and is reused on subsequent
-// scans (collectSamples finds them by type). Exception — hosts: they need a
-// LIVE Gizmo client and can't be simulated.
+// Fixtures. Missing entities are created, which doubles as a create-then-read
+// test. Everything is named api_scan_* and gets reused by the next scan
+// (collectSamples finds them by type). Hosts are the exception: they need a real
+// Gizmo client running, nothing to fake there.
 async function ensureFixtures(samples) {
   const created = []
   const safe = async (fn) => { try { return await fn() } catch { return null } }
@@ -187,9 +187,9 @@ async function ensureFixtures(samples) {
   return created
 }
 
-// ── Hosts for host-dependent APIs (hostcomputers/*): is the Gizmo client up ──
-// There's no list /hostcomputers (404) — the only way to tell "is the host
-// online" is to fire a light passthrough request and see whether the client answers.
+// Host-dependent APIs (hostcomputers/*) need a live client. There is no
+// /hostcomputers list (404), so the only way to tell whether a host is online is
+// to fire a cheap passthrough request and see if anything answers.
 export async function listScanHosts(probe = false) {
   const hosts = data(await gapi.v3.hosts.getHosts({ paginationLimit: 100 }))
   const out = hosts.filter((h) => !h.isDeleted).map((h) => ({ id: h.id, name: h.name, connected: null }))
@@ -220,10 +220,10 @@ const MODULE_ID = {
   ProductOrders: 'orderId', ProductGroups: 'productGroupId', Operators: 'operatorId',
   Branches: 'branchId',
 }
-// Typed {id}: fire ONLY when {id} comes right after the segment
-// (products/time/{id} — yes; applicationgroups/applications/{id} is an app id).
-// If the needed entity doesn't exist on the server — we DON'T substitute
-// "whatever", but honestly say "create it" (no fallback: a foreign id would give a false not found).
+// Typed {id} only counts when it follows the segment directly:
+// products/time/{id} does, applicationgroups/applications/{id} is an app id.
+// When the entity is missing we say "create it" instead of substituting some
+// random id, which would report a fake not-found.
 const PATH_PRIME = [
   [/products\/bundle\/\{/i, 'bundleProductId', 'bundle-продукт'],
   [/products\/time\/\{/i, 'timeProductId', 'продукт «пакет времени»'],
@@ -297,10 +297,10 @@ async function gizmoVersion(spec) {
   return spec?.info?.version ?? 'unknown'
 }
 
-// ── Diff of the OpenAPI docs themselves between Gizmo versions ───────────────
-// Each version's spec is saved next to the reports (spec_<version>.json);
-// diffSpecs finds added/removed/changed endpoints WITH DETAILS:
-// parameters (and whether they're required), request-body and 200-response fields.
+// Diffing the OpenAPI docs themselves between Gizmo versions. Each version's
+// spec is saved next to the reports as spec_<version>.json, and diffSpecs lists
+// added/removed/changed endpoints down to parameters (with their required flag)
+// and request-body / 200-response fields.
 const specFileFor = (ver) => `spec_${String(ver).replace(/[^\w.]/g, '_')}.json`
 
 function derefSchema(spec, schema) {
@@ -358,7 +358,7 @@ export function diffSpecs(verA, verB) {
   return diffSpecObjects(JSON.parse(readFileSync(fa, 'utf8')), JSON.parse(readFileSync(fb, 'utf8')), String(verA), String(verB))
 }
 
-// ── Manual doc comparison: saved spec_*.json and the "current version" from the server ──
+// Manual comparison: a saved spec_*.json against the current version from the server
 export function listSpecs() {
   if (!existsSync(REPORTS_DIR)) return []
   return readdirSync(REPORTS_DIR).filter((f) => f.startsWith('spec_') && f.endsWith('.json')).sort().map((file) => {
@@ -382,10 +382,10 @@ export async function diffSpecFiles(a, b) {
   return diffSpecObjects(A.spec, B.spec, A.label, B.label)
 }
 
-// ── MUTATION scan: create → update → delete ONLY on our own entities ────────
-// The POST body is generated from the OpenAPI requestBody schema; the created
-// record is updated with PUT and deleted. No foreign data is touched. System
-// modules (registers, shifts, payments, sessions...) are block-listed — scenario tests cover them.
+// Mutation scan: create, update and delete, strictly on records we made
+// ourselves. The POST body is generated from the OpenAPI requestBody schema,
+// then PUT, then DELETE. System modules (registers, shifts, payments, sessions
+// and friends) are block-listed, the scenario tests handle those.
 const MUT_BLOCK = new Set([
   'Shifts', 'ShiftCounts', 'Registers', 'RegisterTransactions', 'Payments', 'InvoicePayments', 'Invoices',
   'DepositTransactions', 'DepositPayments', 'PointsTransactions', 'StockTransactions', 'AssetTransactions',
@@ -418,8 +418,8 @@ function mutValue(name, prop, spec, samples, uniq, depth) {
   if (t === 'boolean') return false
   return 'api_mut'
 }
-// Complex field: any hint of an object/ref/composition (the Gizmo spec often
-// has no explicit type). For the *id rule it's important NOT to confuse Uid/Guid with strings.
+// A field counts as complex on any hint of an object/ref/composition, the Gizmo
+// spec often omits the type. Careful with the *id rule: Uid/Guid are not strings.
 const isComplexProp = (prop) => !!(prop?.$ref || prop?.allOf || prop?.oneOf || prop?.anyOf || prop?.properties ||
   prop?.type === 'object' || (Array.isArray(prop?.type) && prop.type.includes('object')) ||
   (prop?.type == null && prop?.enum == null && prop?.format == null))
@@ -439,8 +439,8 @@ function mutBody(spec, schema, samples, uniq, depth = 0) {
   return out
 }
 
-// Fix the body from the server's validation errors: it tells us what's wrong —
-// "could not be converted to X" (wrong type / extra model) or "required".
+// Repair the body from the server's own validation errors: it spells out what it
+// disliked, either "could not be converted to X" or "required".
 function mutFixFromErrors(body, errors, spec, samples, uniq) {
   let changed = false
   for (const e of errors ?? []) {
@@ -598,10 +598,10 @@ export function saveSpecUpload(name, content) {
   return { file, version: ver, endpoints: Object.keys(spec.paths).length }
 }
 
-// Auto-fill REQUIRED query parameters: without them Gizmo replies
-// "One or more validation errors" — that's not an API bug but an unfilled dependency.
-// Value heuristic by the parameter NAME — used both for the OpenAPI required-query
-// and for a retry using the field names from the 400 response body.
+// Required query parameters get filled in automatically, otherwise Gizmo answers
+// "One or more validation errors" and the report blames the API for our own
+// missing input. Values are guessed from the parameter name, both for the
+// required-query list in OpenAPI and for a retry driven by the 400 response.
 function guessValue(q, samples, day) {
   if (/datefrom/i.test(q)) return `${day} 00:00:00`
   if (/dateto/i.test(q)) return `${day} 23:59:59`
@@ -631,20 +631,20 @@ function fillQuery(ep, samples, day) {
   const pageBased = (ep.allQuery ?? []).includes('Pagination.PageSize') && !(ep.allQuery ?? []).includes('Pagination.Limit')
   const query = pageBased ? { 'Pagination.PageSize': 1, 'Pagination.PageNumber': 1 } : { 'Pagination.Limit': 1 }
   for (const q of ep.requiredQuery) query[q] = guessValue(q, samples, day)
-  // Declared DateFrom/DateTo are ALWAYS filled: without them some endpoints take
-  // DateTime.MinValue and 500 with "SqlDateTime overflow" (payments/transactions)
+  // Always fill declared DateFrom/DateTo. Left empty, some endpoints fall back to
+  // DateTime.MinValue and 500 with SqlDateTime overflow (payments/transactions).
   if ((ep.allQuery ?? []).includes('DateFrom') && !query.DateFrom) {
     query.DateFrom = `${day} 00:00:00`; query.DateTo = `${day} 23:59:59`
   }
   if (/reports/i.test(ep.path)) {
     if (!query.DateFrom) { query.DateFrom = `${day} 00:00:00`; query.DateTo = `${day} 23:59:59` }
-    // Reports 500 without entity parameters, even though the spec marks them optional
+    // reports 500 without these, spec says optional anyway
     // (Scalar: /reports/product requires ProductId) — fill ALL *Id with live ids.
     for (const q of ep.allQuery ?? []) {
       if (!(q in query) && /id$/i.test(q)) query[q] = guessValue(q, samples, day)
     }
   }
-  // Reservations look into the FUTURE: a past/empty date → HostReservationException InvalidDate
+  // reservations look forward, a past or empty date gives HostReservationException InvalidDate
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
   if (/reservations\/availability/i.test(ep.path))
     Object.assign(query, { Start: `${tomorrow} 12:00:00`, Duration: 60, BranchId: samples.branchId ?? 1 })
@@ -653,7 +653,7 @@ function fillQuery(ep, samples, day) {
   return query
 }
 
-// "Dependency" errors: the API works but the server lacks the required state
+// Dependency errors: the API is fine, the stand just lacks the state it needs.
 // (a host without a Gizmo client, a missing entity, etc.) — NOT endpoint bugs.
 const DEP_RE = /not connected|not found|does not exist|no such|was thrown/i
 
@@ -668,7 +668,7 @@ const truncBody = (data) => {
   return s.length > 4000 ? s.slice(0, 4000) + `\n… (обрезано, всего ${s.length} символов)` : s
 }
 
-// ── Full run ────────────────────────────────────────────────────────────────
+// Full run
 export async function runFullScan(opts = {}) {
   let spec = null, source = 'openapi'
   let catalog
@@ -856,7 +856,7 @@ export async function runFullScan(opts = {}) {
   return report
 }
 
-// ── Saved reports and the diff between versions ─────────────────────────────
+// Saved reports and the diff between versions
 export function listReports() {
   if (!existsSync(REPORTS_DIR)) return []
   return readdirSync(REPORTS_DIR).filter((f) => f.endsWith('.json') && !f.startsWith('spec_')).sort().reverse().map((file) => {

@@ -1,7 +1,8 @@
-// Pixel scene of the club (top-down). AUTO-PORTED from src/ui.js PAGE_CLUB —
-// logic 1:1, but the data comes from outside: setState(/api/state snapshot) and
-// handleEvent(feed line). Camera: wheel-zoom, drag-pan, dblclick — fit.
-// imported as `tr` because draw functions use `t` for the animation time
+// Top-down pixel scene of the club. Same drawing code as the old PAGE_CLUB in
+// src/ui.js, only the data now comes from outside: setState() takes an
+// /api/state snapshot, handleEvent() takes a feed line. Camera does wheel zoom,
+// drag pan, double-click to fit.
+// i18n is imported as `tr` because the draw functions already use `t` for time.
 import { t as tr } from './i18n.svelte.js'
 export function createScene(cv) {
 
@@ -159,7 +160,7 @@ export function createScene(cv) {
       if (orderOwners.size > 200) orderOwners = new Map([...orderOwners].slice(-80))
   }
 
-  // ── Events → speech bubbles ─────────────────────────────────────────────────
+  // Events → speech bubbles
   const short = (msg) => {
     const parts = msg.split(') ')
     let tail = parts.length > 1 ? parts.slice(1).join(') ') : msg
@@ -197,8 +198,8 @@ export function createScene(cv) {
     }
   }
 
-  // ── Rendering ────────────────────────────────────────────────────────────────
-  // ── Terraria style: outline + shading ───────────────────────────────────────
+  // Rendering
+  // Terraria style: outline + shading
   const OUTLINE = '#0a0c10'
   function shade(hex, amt) {
     const n = parseInt(hex.slice(1), 16)
@@ -475,7 +476,7 @@ export function createScene(cv) {
     ctx.fillStyle = 'rgba(139,148,158,.55)'; ctx.font = 'bold 10px monospace'; ctx.fillText('🚬 ' + tr('КУРИЛКА'), 384, 616)
   }
 
-  // ── KITCHEN: a cook prepares orders, tickets 'in progress', a steaming stove ──
+  // KITCHEN: a cook prepares orders, tickets 'in progress', a steaming stove
   function drawKitchen(t) {
     const { x, y, w, h } = KITCHEN
     // a room with light tiles
@@ -811,7 +812,7 @@ export function createScene(cv) {
     const walk = !sit && a.st !== 'atbar' && a.st !== 'smoking'
     const isOp = a.name === 'оператор'
     const x = Math.round(a.x), y = Math.round(a.y)
-    // ── Themed looks ──
+    // Themed looks
     const demon = TH === 'doom' && !isStaff(a)           // игроки в Doom — демоны
     const doomguy = TH === 'doom' && isStaff(a)          // персонал — Doomguy
     const guide = TH === 'terraria' && a.u === 'op'      // operator в Terraria — Гид
@@ -1001,7 +1002,7 @@ export function createScene(cv) {
     return true
   }
 
-  // ── Camera: fit to screen, pan by drag, zoom by wheel ───────────────────────
+  // Camera: fit to screen, pan by drag, zoom by wheel
   const dpr = window.devicePixelRatio || 1
   let cam = { z: 1, x: 0, y: 0 }
   function resize() {
@@ -1092,7 +1093,7 @@ export function createScene(cv) {
     }
     for (const u of toDelete) { actors.delete(u); freeSlots(u, null) }
 
-    // ── Waiter-courier: carries the finished order to the client (to the host or the counter) ──
+    // Waiter-courier: carries the finished order to the client (to the host or the counter)
     if (!courier && deliveries.length) {
       const oid = deliveries.shift()
       const u = orderOwners.get(oid)

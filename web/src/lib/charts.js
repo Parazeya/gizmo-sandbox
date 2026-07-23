@@ -1,6 +1,6 @@
-// "Exchange-style" live charts: the tape continuously scrolls left (the X axis
-// is anchored to "now"), the last price stretches to the right edge with a
-// price tag and a pulsing dot.
+// Live charts drawn like a trading tape: the X axis is pinned to now so
+// everything crawls left, and the last value runs out to the right edge with a
+// tag and a pulsing dot.
 import { t } from './i18n.svelte.js'
 const dpr = () => window.devicePixelRatio || 1
 
@@ -11,13 +11,8 @@ const fmtT = (ms) => {
 }
 export const nice = (v) => (v >= 1000 ? (v / 1000).toFixed(1) + 'к' : String(Math.round(v)))
 
-/**
- * @param cv canvas
- * @param hist array of points {t, ...}
- * @param series [{k, c, f?}] — key, color, fill
- * @param rangeMin window in minutes
- * @param minMax minimum Y-axis ceiling
- */
+// series is [{k, c, f?}]: key, color, optional fill. minMax keeps the Y axis
+// from collapsing when everything is zero.
 export function drawChart(cv, hist, series, rangeMin, minMax = 0) {
   const D = dpr()
   const w = cv.clientWidth, h = cv.clientHeight

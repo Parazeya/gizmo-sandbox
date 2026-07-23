@@ -1,6 +1,5 @@
 <script>
-  // Non-modal slide-out panel: real-time reports over any view, the page
-  // underneath stays fully interactive.
+  // Выдвижная панель отчётов. Немодальная: страница под ней остаётся кликабельной.
   import { fly } from 'svelte/transition'
   import { t, i18n } from '../lib/i18n.svelte.js'
   import { sim } from '../lib/sim.svelte.js'

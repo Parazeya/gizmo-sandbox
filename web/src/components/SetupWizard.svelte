@@ -1,6 +1,6 @@
 <script>
-  // Мастер первого запуска: подключение (с проверкой связи) → режим → тема.
-  // Показывается, пока в конфиге setupDone !== true.
+  // Мастер первого запуска: подключение с проверкой связи, режим, тема.
+  // Висит, пока в конфиге не появится setupDone.
   import { fetchConfig, saveConfig } from '../lib/sim.svelte.js'
   import { t, i18n, setLang } from '../lib/i18n.svelte.js'
 
